@@ -1,5 +1,6 @@
 import { BoardEvent, EventEmitter } from "./EventEmitter";
 import { NS } from "./namespaces";
+import { Rect } from "./Rect";
 import { generateSvgElement } from "./utilities";
 
 export class Board {
@@ -20,9 +21,11 @@ export class Board {
   private boardY = 0;
 
   // mouse relative
+  // @todo: maybe not need this
   private MouseDown = false;
   private mouseStartX = 0;
   private mouseStartY = 0;
+  currentInsertMode: InsertMode;
 
   public get eventEmitter(): EventEmitter {
     return this._eventEmitter;
@@ -91,11 +94,11 @@ export class Board {
       style: "pointer-events: none",
     };
     this.canvasBg = generateSvgElement(this._svgdoc, bgAttributes);
-    Object.keys(bgAttributes).forEach((key) => {
-      this.canvasBg.setAttribute(key, bgAttributes[key]);
-    });
+    // Object.keys(bgAttributes).forEach((key) => {
+    //   this.canvasBg.setAttribute( key, bgAttributes[key]);
+    // });
 
-    const rect = this.svgdoc.createElementNS(NS.SVG, "rect");
+    const rect = this.svgdoc.createElementNS(NS.SVG, "rect") as SVGRectElement;
     const rectAttributes = {
       id: "blabla",
       width: "100%",
@@ -110,18 +113,28 @@ export class Board {
       rect.setAttribute(key, rectAttributes[key]);
     });
     this.canvasBg.append(rect);
+
+    this.svgcontent = generateSvgElement(this.svgdoc, {
+      ...svgAttributs,
+      id: "svgcontent",
+    });
+
     this.svgroot.append(this.canvasBg);
+    this.svgroot.append(this.svgcontent);
     this.container.append(this.svgroot);
 
     this.initSelector();
 
     this.initEventHandler();
+    this.initCustomEventHandler();
   }
+
   private initSelector() {
     this.selector = new Selector(this);
   }
 
   private initEventHandler() {
+    // @todo: maybe 需要监听画板是否加载完成，后续优化
     this.container.addEventListener(
       "mousedown",
       this.handleMouseDown.bind(this)
@@ -136,6 +149,11 @@ export class Board {
     document.addEventListener("resize", () => {
       this.updateBoardPosition();
     });
+    this.container.addEventListener("keydown", this.handleKeyDown.bind(this));
+  }
+
+  private initCustomEventHandler() {
+    this._eventEmitter.on("createElement", this.onCreateElement.bind(this));
   }
 
   private updateBoardPosition() {
@@ -148,14 +166,41 @@ export class Board {
     return "";
   }
 
-  // events
+  // original events
   protected handleMouseDown(e: MouseEvent) {
-    // @todo: enter different mode, depends on different situation
-    this.currentMode = EditorMode.SELECT;
     console.log("mouse down...");
+    console.log("currentMode: ", this.currentMode);
+    console.log("currentInsertMode: ", this.currentInsertMode);
     this.MouseDown = true;
     this.mouseStartX = e.clientX - this.boardX;
     this.mouseStartY = e.clientY - this.boardY;
+    // @todo: 元素被点击时，更新 this.selected
+    if (this.currentMode === EditorMode.INSERT) {
+      this._cachedEvent.mouseEvent = e;
+      this._cachedEvent.name = "createElement";
+      this._cachedEvent.customData = {
+        type: this.currentInsertMode,
+        startX: this.mouseStartX,
+        startY: this.mouseStartY,
+      };
+      console.log("trigger create Element");
+      this._eventEmitter.trigger("createElement", [this._cachedEvent]);
+      switch (this.currentInsertMode) {
+        default:
+        case InsertMode.RECT:
+          break;
+        case InsertMode.ELLIPSE:
+          break;
+        case InsertMode.LINE:
+          break;
+      }
+    }
+    // 若点击在选中物体范围内则进入拖拽模式(enter drag mode if mouse down on the selected area)
+    else if (this.selected && this.clickInSelectedArea(e)) {
+      this.currentMode = EditorMode.DRAG;
+    } else {
+      this.currentMode = EditorMode.SELECT;
+    }
   }
   protected handleMouseUp(e: MouseEvent) {
     console.log("mouse up...");
@@ -168,7 +213,6 @@ export class Board {
     }
   }
   protected handleMouseMove(e: MouseEvent) {
-    // @todo: 若选中了物体则是拖拽模式
     if (this.MouseDown) {
       this._cachedEvent.mouseEvent = e;
       this._cachedEvent.name = "selectStartEvent";
@@ -187,10 +231,55 @@ export class Board {
   protected handleDBClick(e: MouseEvent) {
     console.log("mouse double click...");
   }
+  protected handleKeyDown(e: KeyboardEvent) {
+    switch (e.key) {
+      case "r":
+        this.currentMode = EditorMode.INSERT;
+        this.currentInsertMode = InsertMode.RECT;
+        break;
+      case "o":
+        this.currentMode = EditorMode.INSERT;
+        this.currentInsertMode = InsertMode.ELLIPSE;
+        break;
+      case "l":
+        this.currentMode = EditorMode.INSERT;
+        this.currentInsertMode = InsertMode.LINE;
+        break;
+      case "v":
+        this.currentMode = EditorMode.SELECT;
+        this.currentInsertMode = InsertMode.LINE;
+        break;
+    }
+  }
+
+  // custom events
+  private onCreateElement(e: BoardEvent) {
+    const { mouseEvent, customData } = e;
+    switch (customData.type) {
+      case InsertMode.RECT:
+        let rect = new Rect(customData.startX, customData.startY, 100, 100);
+        this.svgcontent.append(rect.domInstance);
+        break;
+    }
+  }
+
+  private clickInSelectedArea(e: MouseEvent) {
+    // @todo: complete this
+    return false;
+  }
 }
 
 export enum EditorMode {
   SELECT,
+  DRAG,
+  INSERT,
+  DRAW,
+}
+
+export enum InsertMode {
+  RECT,
+  ELLIPSE,
+  LINE,
 }
 
 export enum ResizeMode {
@@ -217,7 +306,10 @@ export class Selector {
     this.board = board;
     this.container = board.svgroot;
     // this.selectorRoot = board.svgdoc.createElement("g");
-    this.selectRect = board.svgdoc.createElementNS(NS.SVG, "rect");
+    this.selectRect = board.svgdoc.createElementNS(
+      NS.SVG,
+      "rect"
+    ) as SVGRectElement;
     // @todo: 一些初始设置blabla
     this.selectRect.setAttribute("fill", "#f00");
     this.selectRect.setAttribute("stroke", "#66c");
