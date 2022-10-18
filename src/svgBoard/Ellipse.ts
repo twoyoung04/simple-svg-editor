@@ -25,8 +25,8 @@ export class ELLIPSE extends BaseElement {
     super(width, height);
     this.transform.reset().translate2(x, y);
     this.attr = {
-      cx: this.transform.e + this.frameWidth / 2,
-      cy: this.transform.f + this.frameHeight / 2,
+      cx: this.frameWidth / 2,
+      cy: this.frameHeight / 2,
       rx: this.frameWidth / 2,
       ry: this.frameHeight / 2,
     };
@@ -37,20 +37,15 @@ export class ELLIPSE extends BaseElement {
       NS.SVG,
       "ellipse"
     ) as SVGEllipseElement;
-    setAttr(element, {
-      cx: this.transform.e,
-      cy: this.transform.f,
-      rx: 0,
-      ry: 0,
-      fill: "red",
-    });
+    setAttr(element, this.attr);
+    setAttr(element, { fill: "red" });
     return element;
   }
 
   public updateAttr() {
     this.attr = {
-      cx: this.transform.e + this.frameWidth / 2,
-      cy: this.transform.f + this.frameHeight / 2,
+      cx: this.frameWidth / 2,
+      cy: this.frameHeight / 2,
       rx: this.frameWidth / 2,
       ry: this.frameHeight / 2,
     };
@@ -59,5 +54,9 @@ export class ELLIPSE extends BaseElement {
   public updateRendering(): void {
     this.updateAttr();
     setAttr(this._domInstance, this.attr);
+    const { a, b, c, d, e, f } = this._transform;
+    setAttr(this._domInstance, {
+      transform: `matrix(${a},${b},${c},${d},${e},${f})`,
+    });
   }
 }

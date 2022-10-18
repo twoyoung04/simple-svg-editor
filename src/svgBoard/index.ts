@@ -1,3 +1,4 @@
-import { Board, Selector } from "./Board";
+import { Board } from "./Board";
+import { Selector } from "./Selector";
 
 export { Board, Selector };

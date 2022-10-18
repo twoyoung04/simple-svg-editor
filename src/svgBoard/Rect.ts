@@ -2,12 +2,14 @@ import { BaseElement } from "./BaseElement";
 import { NS } from "./namespaces";
 import { setAttr } from "./utilities";
 
+interface RectAttr {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 export class Rect extends BaseElement {
-  private x: number;
-  private y: number;
-  private width: number;
-  private height: number;
-  private fill: string;
+  private attr: RectAttr;
 
   private _domInstance: SVGRectElement;
   public get domInstance(): SVGRectElement {
@@ -20,32 +22,35 @@ export class Rect extends BaseElement {
 
   constructor(x: number, y: number, width: number, height: number) {
     super(width, height);
-    this.x = x;
-    this.y = y;
-    this.width = width;
-    this.height = height;
+    this.transform.reset().translate2(x, y);
+    this.attr = {
+      x: 0,
+      y: 0,
+      width: width,
+      height: height,
+    };
   }
 
   protected createDomInstance() {
     const element = document.createElementNS(NS.SVG, "rect") as SVGRectElement;
-    element.setAttribute("x", this.x.toString());
-    element.setAttribute("y", this.y.toString());
-    element.setAttribute("width", this.width.toString());
-    element.setAttribute("height", this.height.toString());
-    element.setAttribute("fill", "red");
+    setAttr(element, this.attr);
+    setAttr(element, { fill: "red" });
     return element;
+  }
+
+  public updateAttr() {
+    this.attr.width = this.frameWidth;
+    this.attr.height = this.frameHeight;
   }
 
   public updateRendering(): void {
     // @architecture: refractor to DI（改成依赖注入的方式，支持多平台，如 WebGL）
     // @todo: frameWidth，frameHeight + rotation -> width, height
-    this.width = this.frameWidth;
-    this.height = this.frameHeight;
+    this.updateAttr();
+    setAttr(this._domInstance, this.attr);
+    const { a, b, c, d, e, f } = this._transform;
     setAttr(this._domInstance, {
-      x: this.x,
-      y: this.y,
-      width: this.width,
-      height: this.height,
+      transform: `matrix(${a},${b},${c},${d},${e},${f})`,
     });
   }
 }

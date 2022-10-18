@@ -3,11 +3,19 @@ import { ELLIPSE } from "./Ellipse";
 import { BoardEvent, EventEmitter } from "./EventEmitter";
 import { NS } from "./namespaces";
 import { Rect } from "./Rect";
-import { generateSvgElement } from "./utilities";
+import { generateSvgElement, setAttr } from "./utilities";
+import { Selector } from "./Selector";
+import { Log } from "./Log";
 
 export class Board {
   private saveOptions: any;
-  private selected: BaseElement;
+  private _selected: BaseElement;
+  public get selected(): BaseElement {
+    return this._selected;
+  }
+  public set selected(value: BaseElement) {
+    this._selected = value;
+  }
   private plugins: any[];
   private currentMode: EditorMode;
   private currentResizeMode: ResizeMode;
@@ -15,6 +23,7 @@ export class Board {
   private curBBoxes: any[];
   private selector: Selector;
   private container: HTMLElement;
+  private elements: BaseElement[];
   private _svgdoc: Document;
   private _eventEmitter: EventEmitter;
   private _cachedEvent: BoardEvent;
@@ -64,6 +73,7 @@ export class Board {
     this.curConfig = {
       dimensions: [800, 600],
     };
+    this.elements = [];
 
     this._eventEmitter = new EventEmitter();
     this._cachedEvent = new BoardEvent("", null);
@@ -152,6 +162,7 @@ export class Board {
   }
 
   private initCustomEventHandler() {
+    this._eventEmitter.on("selectStart", this.onSelectStart.bind(this));
     this._eventEmitter.on("createElement", this.onCreateElement.bind(this));
     this._eventEmitter.on("createMove", this.onCreateMove.bind(this));
     this._eventEmitter.on("createEnd", this.onCreateEnd.bind(this));
@@ -165,6 +176,15 @@ export class Board {
 
   public exportSvg(): string {
     return "";
+  }
+
+  private setSelected(element: BaseElement) {
+    this.selected = element;
+    // @todo: create new events derived from BoardEvent
+    this._cachedEvent.customData = {
+      element,
+    };
+    this._eventEmitter.trigger("elementSelected", [this._cachedEvent]);
   }
 
   // original events
@@ -191,6 +211,9 @@ export class Board {
       this.currentMode = EditorMode.DRAG;
     } else {
       this.currentMode = EditorMode.SELECT;
+      this._cachedEvent.mouseEvent = e;
+      this._cachedEvent.name = "selectStart";
+      this._eventEmitter.trigger("selectStart", [this._cachedEvent]);
     }
   }
   protected handleMouseUp(e: MouseEvent) {
@@ -220,14 +243,14 @@ export class Board {
       this._eventEmitter.trigger("createMove", [this._cachedEvent]);
     } else if (this.MouseDown) {
       this._cachedEvent.mouseEvent = e;
-      this._cachedEvent.name = "selectStartEvent";
+      this._cachedEvent.name = "selectMove";
       this._cachedEvent.customData = {
         startX: this.mouseStartX,
         startY: this.mouseStartY,
         endX: e.clientX - this.boardX,
         endY: e.clientY - this.boardY,
       };
-      this._eventEmitter.trigger("selectStart", [this._cachedEvent]);
+      this._eventEmitter.trigger("selectMove", [this._cachedEvent]);
     }
   }
   protected handleClick(e: MouseEvent) {
@@ -255,25 +278,37 @@ export class Board {
         this.currentInsertMode = InsertMode.LINE;
         break;
     }
+    if (this.currentMode === EditorMode.INSERT) {
+      this.container.className = "cursor-crosshair";
+    }
   }
 
   // custom events
+  private onSelectStart(e: BoardEvent) {}
+  private onSelectMove(e: BoardEvent) {}
+  private onSelectEnd(e: BoardEvent) {}
+
   private onCreateElement(e: BoardEvent) {
     const { mouseEvent, customData } = e;
     switch (customData.type) {
       case InsertMode.RECT:
         let rect = new Rect(customData.startX, customData.startY, 0, 0);
         this.svgcontent.append(rect.domInstance);
-        this.selected = rect;
+        this.elements.push(rect);
+        this.setSelected(rect);
         break;
       case InsertMode.ELLIPSE:
         let ellipse = new ELLIPSE(customData.startX, customData.startY, 0, 0);
         this.svgcontent.append(ellipse.domInstance);
-        this.selected = ellipse;
+        this.elements.push(ellipse);
+        this.setSelected(ellipse);
         break;
+      default:
+        Log.Error("error insert mode");
     }
   }
   private onCreateMove(e: BoardEvent) {
+    if (this.container.className) this.container.className = "";
     console.log("handle create move...");
     const { mouseEvent, customData } = e;
     // @todo: handle 移动距离为负数的情况，参考 figma
@@ -283,6 +318,8 @@ export class Board {
     ];
     this.selected.setFrameWidth(width);
     this.selected.setFrameHeight(height);
+    this.selected.transform.e = Math.min(customData.endX, customData.startX);
+    this.selected.transform.f = Math.min(customData.endY, customData.startY);
     this.selected.updateRendering();
   }
   private onCreateEnd(e: BoardEvent) {
@@ -320,52 +357,5 @@ export class EventHandler {
       EventHandler.instance = new EventHandler();
     }
     return EventHandler.instance;
-  }
-}
-
-export class Selector {
-  private container: SVGElement;
-  private selectorRoot: Element;
-  private selectRect: Element;
-  private board: Board;
-  constructor(board: Board) {
-    this.board = board;
-    this.container = board.svgroot;
-    // this.selectorRoot = board.svgdoc.createElement("g");
-    this.selectRect = board.svgdoc.createElementNS(
-      NS.SVG,
-      "rect"
-    ) as SVGRectElement;
-    // @todo: 一些初始设置blabla
-    this.selectRect.setAttribute("fill", "#f00");
-    this.selectRect.setAttribute("stroke", "#66c");
-    this.selectRect.setAttribute("stroke-width", "0.5");
-    this.selectRect.setAttribute("fill-opacity", "0.15");
-    this.selectRect.setAttribute("display", "none");
-    // this.selectorRoot.append(this.selectRect);
-    this.container.append(this.selectRect);
-
-    // @todo: 注册监听 selectStart 事件
-    board.eventEmitter.on("selectStart", this.onSelectStart.bind(this));
-    board.eventEmitter.on("selectEnd", this.onSelectEnd.bind(this));
-  }
-
-  private onSelectStart(e) {
-    this.selectRect.setAttribute("display", "inline");
-    this.selectRect.setAttribute("x", e.customData.startX);
-    this.selectRect.setAttribute("y", e.customData.startY);
-    this.selectRect.setAttribute(
-      "width",
-      (e.customData.endX - e.customData.startX).toString()
-    );
-    this.selectRect.setAttribute(
-      "height",
-      (e.customData.endY - e.customData.startY).toString()
-    );
-  }
-  private onSelectEnd(e: BoardEvent) {
-    this.selectRect.setAttribute("display", "none");
-    this.selectRect.setAttribute("width", "0");
-    this.selectRect.setAttribute("height", "0");
   }
 }
