@@ -8,3 +8,9 @@ export const generateSvgElement = (docuemnt: Document, attributes?: any) => {
   });
   return ele;
 };
+
+export const setAttr = (element: Element, attr: any) => {
+  Object.keys(attr).forEach((key) => {
+    element.setAttribute(key, attr[key]);
+  });
+};

@@ -1,3 +1,4 @@
+import { BaseElement } from "./BaseElement";
 import { BoardEvent, EventEmitter } from "./EventEmitter";
 import { NS } from "./namespaces";
 import { Rect } from "./Rect";
@@ -5,7 +6,7 @@ import { generateSvgElement } from "./utilities";
 
 export class Board {
   private saveOptions: any;
-  private selected: Element;
+  private selected: BaseElement;
   private plugins: any[];
   private currentMode: EditorMode;
   private currentResizeMode: ResizeMode;
@@ -94,9 +95,6 @@ export class Board {
       style: "pointer-events: none",
     };
     this.canvasBg = generateSvgElement(this._svgdoc, bgAttributes);
-    // Object.keys(bgAttributes).forEach((key) => {
-    //   this.canvasBg.setAttribute( key, bgAttributes[key]);
-    // });
 
     const rect = this.svgdoc.createElementNS(NS.SVG, "rect") as SVGRectElement;
     const rectAttributes = {
@@ -154,6 +152,8 @@ export class Board {
 
   private initCustomEventHandler() {
     this._eventEmitter.on("createElement", this.onCreateElement.bind(this));
+    this._eventEmitter.on("createMove", this.onCreateMove.bind(this));
+    this._eventEmitter.on("createEnd", this.onCreateEnd.bind(this));
   }
 
   private updateBoardPosition() {
@@ -183,17 +183,7 @@ export class Board {
         startX: this.mouseStartX,
         startY: this.mouseStartY,
       };
-      console.log("trigger create Element");
       this._eventEmitter.trigger("createElement", [this._cachedEvent]);
-      switch (this.currentInsertMode) {
-        default:
-        case InsertMode.RECT:
-          break;
-        case InsertMode.ELLIPSE:
-          break;
-        case InsertMode.LINE:
-          break;
-      }
     }
     // 若点击在选中物体范围内则进入拖拽模式(enter drag mode if mouse down on the selected area)
     else if (this.selected && this.clickInSelectedArea(e)) {
@@ -205,15 +195,29 @@ export class Board {
   protected handleMouseUp(e: MouseEvent) {
     console.log("mouse up...");
     this.MouseDown = false;
-    if (this.currentMode == EditorMode.SELECT) {
+    if (this.currentMode === EditorMode.INSERT) {
+      this._cachedEvent.name = "createEnd";
+      this._cachedEvent.mouseEvent = e;
+      this._eventEmitter.trigger("createEnd", [this._cachedEvent]);
+    } else if (this.currentMode == EditorMode.SELECT) {
       this._cachedEvent.name = "selectEnd";
       this._cachedEvent.mouseEvent = e;
-
       this._eventEmitter.trigger("selectEnd", [this._cachedEvent]);
     }
+    this.currentMode = EditorMode.SELECT;
   }
   protected handleMouseMove(e: MouseEvent) {
-    if (this.MouseDown) {
+    if (this.currentMode === EditorMode.INSERT && this.MouseDown) {
+      this._cachedEvent.mouseEvent = e;
+      this._cachedEvent.name = "createMove";
+      this._cachedEvent.customData = {
+        startX: this.mouseStartX,
+        startY: this.mouseStartY,
+        endX: e.clientX - this.boardX,
+        endY: e.clientY - this.boardY,
+      };
+      this._eventEmitter.trigger("createMove", [this._cachedEvent]);
+    } else if (this.MouseDown) {
       this._cachedEvent.mouseEvent = e;
       this._cachedEvent.name = "selectStartEvent";
       this._cachedEvent.customData = {
@@ -257,10 +261,26 @@ export class Board {
     const { mouseEvent, customData } = e;
     switch (customData.type) {
       case InsertMode.RECT:
-        let rect = new Rect(customData.startX, customData.startY, 100, 100);
+        let rect = new Rect(customData.startX, customData.startY, 0, 0);
         this.svgcontent.append(rect.domInstance);
+        this.selected = rect;
         break;
     }
+  }
+  private onCreateMove(e: BoardEvent) {
+    console.log("handle create move...");
+    const { mouseEvent, customData } = e;
+    // @todo: handle 移动距离为负数的情况，参考 figma
+    let [width, height] = [
+      Math.abs(customData.endX - customData.startX),
+      Math.abs(customData.endY - customData.startY),
+    ];
+    this.selected.setFrameWidth(width);
+    this.selected.setFrameHeight(height);
+    this.selected.updateRendering();
+  }
+  private onCreateEnd(e: BoardEvent) {
+    console.log("create element end...");
   }
 
   private clickInSelectedArea(e: MouseEvent) {
