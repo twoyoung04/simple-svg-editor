@@ -1,4 +1,5 @@
 import { BaseElement } from "./BaseElement";
+import { ELLIPSE } from "./Ellipse";
 import { BoardEvent, EventEmitter } from "./EventEmitter";
 import { NS } from "./namespaces";
 import { Rect } from "./Rect";
@@ -264,6 +265,11 @@ export class Board {
         let rect = new Rect(customData.startX, customData.startY, 0, 0);
         this.svgcontent.append(rect.domInstance);
         this.selected = rect;
+        break;
+      case InsertMode.ELLIPSE:
+        let ellipse = new ELLIPSE(customData.startX, customData.startY, 0, 0);
+        this.svgcontent.append(ellipse.domInstance);
+        this.selected = ellipse;
         break;
     }
   }

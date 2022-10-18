@@ -3,7 +3,6 @@ import { NS } from "./namespaces";
 import { setAttr } from "./utilities";
 
 export class Rect extends BaseElement {
-  private id: string;
   private x: number;
   private y: number;
   private width: number;
