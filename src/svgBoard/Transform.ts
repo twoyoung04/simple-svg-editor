@@ -67,6 +67,11 @@ export class Transform {
     this.f += y;
   }
   public rotate(radius: number, p: Vector2) {}
+
+  // @todo: 放在此处不太规范，耦合性太强
+  public cssString() {
+    return `matrix(${this.a},${this.b},${this.c},${this.d},${this.e},${this.f})`;
+  }
 }
 
 interface TransformLike {

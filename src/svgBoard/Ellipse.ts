@@ -1,4 +1,5 @@
 import { BaseElement } from "./BaseElement";
+import { Default } from "./Constant";
 import { NS } from "./namespaces";
 import { setAttr } from "./utilities";
 
@@ -38,7 +39,7 @@ export class ELLIPSE extends BaseElement {
       "ellipse"
     ) as SVGEllipseElement;
     setAttr(element, this.attr);
-    setAttr(element, { fill: "red" });
+    setAttr(element, { fill: Default.fill });
     return element;
   }
 

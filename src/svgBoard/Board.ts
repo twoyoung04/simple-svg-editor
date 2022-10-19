@@ -9,12 +9,12 @@ import { Log } from "./Log";
 
 export class Board {
   private saveOptions: any;
-  private _selected: BaseElement;
-  public get selected(): BaseElement {
-    return this._selected;
+  private _selection: BaseElement[];
+  public get selection(): BaseElement[] {
+    return this._selection;
   }
-  public set selected(value: BaseElement) {
-    this._selected = value;
+  public set selection(value: BaseElement[]) {
+    this._selection = value;
   }
   private plugins: any[];
   private currentMode: EditorMode;
@@ -36,7 +36,7 @@ export class Board {
   private MouseDown = false;
   private mouseStartX = 0;
   private mouseStartY = 0;
-  currentInsertMode: InsertMode;
+  currentCreateMode: CreateMode;
 
   public get eventEmitter(): EventEmitter {
     return this._eventEmitter;
@@ -64,7 +64,7 @@ export class Board {
 
   constructor(container: HTMLElement) {
     this.saveOptions = {};
-    this.selected = null;
+    this.selection = null;
     this.plugins = [];
     this.currentMode = EditorMode.SELECT;
     this.currentResizeMode = ResizeMode.CASUAL;
@@ -166,6 +166,7 @@ export class Board {
     this._eventEmitter.on("createElement", this.onCreateElement.bind(this));
     this._eventEmitter.on("createMove", this.onCreateMove.bind(this));
     this._eventEmitter.on("createEnd", this.onCreateEnd.bind(this));
+    this._eventEmitter.on("changeMode", this.onChangeMode.bind(this));
   }
 
   private updateBoardPosition() {
@@ -178,39 +179,52 @@ export class Board {
     return "";
   }
 
-  private setSelected(element: BaseElement) {
-    this.selected = element;
+  private setSelected(elements: BaseElement[]) {
+    this.selection = elements;
+    let eventType = "elementSelected";
+    if (!elements || elements.length == 0) {
+      eventType = "nothingSelected";
+    } else {
+      this._cachedEvent.customData = {
+        elements,
+      };
+    }
     // @todo: create new events derived from BoardEvent
+    this._eventEmitter.trigger(eventType, [this._cachedEvent]);
+  }
+
+  private setMode(mode: EditorMode) {
+    this.currentMode = mode;
     this._cachedEvent.customData = {
-      element,
+      mode,
     };
-    this._eventEmitter.trigger("elementSelected", [this._cachedEvent]);
+    this._eventEmitter.trigger("changeMode", [this._cachedEvent]);
   }
 
   // original events
   protected handleMouseDown(e: MouseEvent) {
     console.log("mouse down...");
     console.log("currentMode: ", this.currentMode);
-    console.log("currentInsertMode: ", this.currentInsertMode);
+    console.log("currentInsertMode: ", this.currentCreateMode);
     this.MouseDown = true;
     this.mouseStartX = e.clientX - this.boardX;
     this.mouseStartY = e.clientY - this.boardY;
     // @todo: 元素被点击时，更新 this.selected
-    if (this.currentMode === EditorMode.INSERT) {
+    if (this.currentMode === EditorMode.CREATE) {
       this._cachedEvent.mouseEvent = e;
       this._cachedEvent.name = "createElement";
       this._cachedEvent.customData = {
-        type: this.currentInsertMode,
+        type: this.currentCreateMode,
         startX: this.mouseStartX,
         startY: this.mouseStartY,
       };
       this._eventEmitter.trigger("createElement", [this._cachedEvent]);
     }
     // 若点击在选中物体范围内则进入拖拽模式(enter drag mode if mouse down on the selected area)
-    else if (this.selected && this.clickInSelectedArea(e)) {
-      this.currentMode = EditorMode.DRAG;
+    else if (this.selection && this.clickInSelectedArea(e)) {
+      this.setMode(EditorMode.DRAG);
     } else {
-      this.currentMode = EditorMode.SELECT;
+      this.setMode(EditorMode.SELECT);
       this._cachedEvent.mouseEvent = e;
       this._cachedEvent.name = "selectStart";
       this._eventEmitter.trigger("selectStart", [this._cachedEvent]);
@@ -219,7 +233,7 @@ export class Board {
   protected handleMouseUp(e: MouseEvent) {
     console.log("mouse up...");
     this.MouseDown = false;
-    if (this.currentMode === EditorMode.INSERT) {
+    if (this.currentMode === EditorMode.CREATE) {
       this._cachedEvent.name = "createEnd";
       this._cachedEvent.mouseEvent = e;
       this._eventEmitter.trigger("createEnd", [this._cachedEvent]);
@@ -231,7 +245,7 @@ export class Board {
     this.currentMode = EditorMode.SELECT;
   }
   protected handleMouseMove(e: MouseEvent) {
-    if (this.currentMode === EditorMode.INSERT && this.MouseDown) {
+    if (this.currentMode === EditorMode.CREATE && this.MouseDown) {
       this._cachedEvent.mouseEvent = e;
       this._cachedEvent.name = "createMove";
       this._cachedEvent.customData = {
@@ -262,24 +276,21 @@ export class Board {
   protected handleKeyDown(e: KeyboardEvent) {
     switch (e.key) {
       case "r":
-        this.currentMode = EditorMode.INSERT;
-        this.currentInsertMode = InsertMode.RECT;
+        this.setMode(EditorMode.CREATE);
+        this.currentCreateMode = CreateMode.RECT;
         break;
       case "o":
-        this.currentMode = EditorMode.INSERT;
-        this.currentInsertMode = InsertMode.ELLIPSE;
+        this.setMode(EditorMode.CREATE);
+        this.currentCreateMode = CreateMode.ELLIPSE;
         break;
       case "l":
-        this.currentMode = EditorMode.INSERT;
-        this.currentInsertMode = InsertMode.LINE;
+        this.setMode(EditorMode.CREATE);
+        this.currentCreateMode = CreateMode.LINE;
         break;
       case "v":
-        this.currentMode = EditorMode.SELECT;
-        this.currentInsertMode = InsertMode.LINE;
+        this.setMode(EditorMode.SELECT);
+        this.currentCreateMode = CreateMode.LINE;
         break;
-    }
-    if (this.currentMode === EditorMode.INSERT) {
-      this.container.className = "cursor-crosshair";
     }
   }
 
@@ -291,17 +302,17 @@ export class Board {
   private onCreateElement(e: BoardEvent) {
     const { mouseEvent, customData } = e;
     switch (customData.type) {
-      case InsertMode.RECT:
+      case CreateMode.RECT:
         let rect = new Rect(customData.startX, customData.startY, 0, 0);
         this.svgcontent.append(rect.domInstance);
         this.elements.push(rect);
-        this.setSelected(rect);
+        this.setSelected([rect]);
         break;
-      case InsertMode.ELLIPSE:
+      case CreateMode.ELLIPSE:
         let ellipse = new ELLIPSE(customData.startX, customData.startY, 0, 0);
         this.svgcontent.append(ellipse.domInstance);
         this.elements.push(ellipse);
-        this.setSelected(ellipse);
+        this.setSelected([ellipse]);
         break;
       default:
         Log.Error("error insert mode");
@@ -311,19 +322,36 @@ export class Board {
     if (this.container.className) this.container.className = "";
     console.log("handle create move...");
     const { mouseEvent, customData } = e;
-    // @todo: handle 移动距离为负数的情况，参考 figma
     let [width, height] = [
       Math.abs(customData.endX - customData.startX),
       Math.abs(customData.endY - customData.startY),
     ];
-    this.selected.setFrameWidth(width);
-    this.selected.setFrameHeight(height);
-    this.selected.transform.e = Math.min(customData.endX, customData.startX);
-    this.selected.transform.f = Math.min(customData.endY, customData.startY);
-    this.selected.updateRendering();
+    this.selection[0].setFrameWidth(width);
+    this.selection[0].setFrameHeight(height);
+    this.selection[0].transform.e = Math.min(
+      customData.endX,
+      customData.startX
+    );
+    this.selection[0].transform.f = Math.min(
+      customData.endY,
+      customData.startY
+    );
+    this.selection[0].updateRendering();
+
+    // @check: 在创建与变换元素时候需要时刻更新选择器，抛出这个事件是否合理？
+    this._eventEmitter.trigger("elementSelected", [this._cachedEvent]);
   }
   private onCreateEnd(e: BoardEvent) {
     console.log("create element end...");
+  }
+  private onChangeMode(e: BoardEvent) {
+    const { customData } = e;
+    console.log("change mode:", customData.mode);
+    if (customData.mode === EditorMode.SELECT) {
+      this.setSelected([]);
+    } else if (this.currentMode === EditorMode.CREATE) {
+      this.container.className = "cursor-crosshair";
+    }
   }
 
   private clickInSelectedArea(e: MouseEvent) {
@@ -333,16 +361,16 @@ export class Board {
 }
 
 export enum EditorMode {
-  SELECT,
-  DRAG,
-  INSERT,
-  DRAW,
+  SELECT = "SELECT",
+  DRAG = "DRAG",
+  CREATE = "CREATE",
+  DRAW = "DRAW",
 }
 
-export enum InsertMode {
-  RECT,
-  ELLIPSE,
-  LINE,
+export enum CreateMode {
+  RECT = "RECT",
+  ELLIPSE = "ELLIPsE",
+  LINE = "LINE",
 }
 
 export enum ResizeMode {

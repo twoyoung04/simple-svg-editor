@@ -2,8 +2,20 @@ import { Transform, Vector2 } from "./Transform";
 
 export abstract class BaseElement {
   protected id: string;
-  protected frameWidth: number;
-  protected frameHeight: number;
+  protected _frameWidth: number;
+  public get frameWidth(): number {
+    return this._frameWidth;
+  }
+  public set frameWidth(value: number) {
+    this._frameWidth = value;
+  }
+  protected _frameHeight: number;
+  public get frameHeight(): number {
+    return this._frameHeight;
+  }
+  public set frameHeight(value: number) {
+    this._frameHeight = value;
+  }
   protected absoluteBBox: BBOX;
   protected _transform: Transform;
   public get transform(): Transform {
