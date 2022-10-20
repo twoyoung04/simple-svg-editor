@@ -19,3 +19,6 @@ body {
 .cursor-resize {
   cursor: nwse-resize;
 }
+.cursor-move {
+  cursor: move;
+}

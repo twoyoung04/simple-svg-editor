@@ -1,35 +1,51 @@
-import { Box } from "./BBox";
-import { Transform } from "./Transform";
+import { Box } from "./Box"
+import { Transform } from "./Transform"
+import { Vector2 } from "./Vector"
 
 export class Area {
-  private _box: Box;
+  private _box: Box
   public get box(): Box {
-    return this._box;
+    return this._box
   }
   public set box(value: Box) {
-    this._box = value;
+    this._box = value
   }
-  private _transform: Transform;
+  private _transform: Transform
   public get transform(): Transform {
-    return this._transform;
+    return this._transform
   }
   public set transform(value: Transform) {
-    this._transform = value;
+    this._transform = value
   }
   constructor(box: Box, tranform: Transform) {
-    this.box = box;
-    this.transform = tranform;
+    this.box = box
+    this.transform = tranform
   }
 
-  public include(x: number, y: number) {
+  public include(p: Vector2) {
     // @todo: finish this with transform
-    const e = this._transform.e;
-    const f = this._transform.f;
-    const flag =
-      x - e >= this.box.x &&
-      x - e <= this.box.x + this.box.w &&
-      y - f >= this.box.y &&
-      y - f <= this.box.y + this.box.h;
-    return flag;
+    let pp = p.clone().applyTransform(this._transform.inverse())
+    return (
+      pp.x < this.box.x2 &&
+      pp.x > this.box.x &&
+      pp.y < this.box.y2 &&
+      pp.y > this.box.y
+    )
+  }
+
+  public nearCorner(p: Vector2) {
+    let pp = p.clone().applyTransform(this._transform.inverse())
+    let corners = [
+      new Vector2(this.box.x, this.box.y),
+      new Vector2(this.box.x, this.box.y2),
+      new Vector2(this.box.x2, this.box.y2),
+      new Vector2(this.box.x2, this.box.y),
+    ]
+    let res = corners.find((c) => c.distance(pp) < 10)
+    return !!res
+  }
+
+  public center() {
+    return this.box.center().clone().applyTransform(this.transform)
   }
 }
