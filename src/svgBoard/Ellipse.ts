@@ -13,18 +13,17 @@ interface EllipseAttr {
 export class ELLIPSE extends BaseElement {
   private attr: EllipseAttr;
 
-  private _domInstance: SVGEllipseElement;
-  public get domInstance(): SVGEllipseElement {
-    if (!this._domInstance) this._domInstance = this.createDomInstance();
-    return this._domInstance;
-  }
-  public set domInstance(value: SVGEllipseElement) {
-    this._domInstance = value;
-  }
+  // public get domInstance(): SVGEllipseElement {
+  //   if (!this._domInstance) this._domInstance = this.createDomInstance();
+  //   return this._domInstance;
+  // }
+  // public set domInstance(value: SVGEllipseElement) {
+  //   this._domInstance = value;
+  // }
 
   constructor(x: number, y: number, width: number, height: number) {
-    super(width, height);
-    this.transform.reset().translate2(x, y);
+    super(x, y, width, height);
+
     this.attr = {
       cx: this.frameWidth / 2,
       cy: this.frameHeight / 2,
@@ -40,7 +39,7 @@ export class ELLIPSE extends BaseElement {
     ) as SVGEllipseElement;
     setAttr(element, this.attr);
     setAttr(element, { fill: Default.fill });
-    return element;
+    this._domInstance = element;
   }
 
   public updateAttr() {
@@ -60,4 +59,8 @@ export class ELLIPSE extends BaseElement {
       transform: `matrix(${a},${b},${c},${d},${e},${f})`,
     });
   }
+
+  public onCreateStart(): void {}
+  public onCreating(): void {}
+  public onCreateEnd(): void {}
 }

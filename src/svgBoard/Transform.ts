@@ -44,8 +44,11 @@ export class Transform {
     this.e = arr[4];
     this.f = arr[5];
   }
-  public clone(t: Transform) {
+  public copy(t: Transform) {
     return Transform.from(t);
+  }
+  public clone() {
+    return Transform.from(this);
   }
   public reset() {
     this.a = 1;
@@ -67,6 +70,22 @@ export class Transform {
     this.f += y;
   }
   public rotate(radius: number, p: Vector2) {}
+
+  public rightMultiply(tm: Transform) {
+    let a = tm.a * this.a + tm.c * this.b;
+    let b = tm.b * this.a + tm.d * this.b;
+    let c = tm.a * this.c + tm.c * this.d;
+    let d = tm.b * this.c + tm.d * this.d;
+    let e = tm.a * this.e + tm.c * this.f + tm.e;
+    let f = tm.b * this.e + tm.d * this.f + tm.f;
+    this.a = a;
+    this.b = b;
+    this.c = c;
+    this.d = d;
+    this.e = e;
+    this.f = f;
+  }
+  public leftMultiply(tm: Transform) {}
 
   // @todo: 放在此处不太规范，耦合性太强
   public cssString() {

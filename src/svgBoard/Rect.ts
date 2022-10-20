@@ -12,18 +12,16 @@ interface RectAttr {
 export class Rect extends BaseElement {
   private attr: RectAttr;
 
-  private _domInstance: SVGRectElement;
-  public get domInstance(): SVGRectElement {
-    if (!this._domInstance) this._domInstance = this.createDomInstance();
-    return this._domInstance;
-  }
-  public set domInstance(value: SVGRectElement) {
-    this._domInstance = value;
-  }
+  // public get domInstance(): SVGRectElement {
+  //   if (!this._domInstance) this._domInstance = this.createDomInstance();
+  //   return this._domInstance;
+  // }
+  // public set domInstance(value: SVGRectElement) {
+  //   this._domInstance = value;
+  // }
 
   constructor(x: number, y: number, width: number, height: number) {
-    super(width, height);
-    this.transform.reset().translate2(x, y);
+    super(x, y, width, height);
     this.attr = {
       x: 0,
       y: 0,
@@ -36,12 +34,16 @@ export class Rect extends BaseElement {
     const element = document.createElementNS(NS.SVG, "rect") as SVGRectElement;
     setAttr(element, this.attr);
     setAttr(element, { fill: Default.fill });
-    return element;
+    this._domInstance = element;
   }
 
   public updateAttr() {
     this.attr.width = this.frameWidth;
     this.attr.height = this.frameHeight;
+  }
+
+  private updateAABB() {
+    this.AABB.setSize(this.frameWidth, this.frameHeight);
   }
 
   public updateRendering(): void {
@@ -54,4 +56,10 @@ export class Rect extends BaseElement {
       transform: `matrix(${a},${b},${c},${d},${e},${f})`,
     });
   }
+
+  // public onCreateStart(): void {}
+  public onCreating() {
+    this.updateAABB();
+  }
+  // public onCreateEnd(): void {}
 }

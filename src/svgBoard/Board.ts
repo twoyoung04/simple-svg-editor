@@ -6,6 +6,9 @@ import { Rect } from "./Rect";
 import { generateSvgElement, setAttr } from "./utilities";
 import { Selector } from "./Selector";
 import { Log } from "./Log";
+import { Area } from "./Area";
+import { Box } from "./BBox";
+import { Transform } from "./Transform";
 
 export class Board {
   private saveOptions: any;
@@ -16,6 +19,7 @@ export class Board {
   public set selection(value: BaseElement[]) {
     this._selection = value;
   }
+  private selectionArea: Area;
   private plugins: any[];
   private currentMode: EditorMode;
   private currentResizeMode: ResizeMode;
@@ -36,7 +40,8 @@ export class Board {
   private MouseDown = false;
   private mouseStartX = 0;
   private mouseStartY = 0;
-  currentCreateMode: CreateMode;
+  private lastZIndex = 0;
+  private currentCreateMode: CreateMode;
 
   public get eventEmitter(): EventEmitter {
     return this._eventEmitter;
@@ -62,9 +67,12 @@ export class Board {
   private curConfig: any;
   private canvasBg: SVGElement;
 
+  private selectionTransforms: Transform[];
+
   constructor(container: HTMLElement) {
     this.saveOptions = {};
-    this.selection = null;
+    this.selection = [];
+    this.selectionArea = new Area(new Box(0, 0, 0, 0), Transform.identity());
     this.plugins = [];
     this.currentMode = EditorMode.SELECT;
     this.currentResizeMode = ResizeMode.CASUAL;
@@ -74,6 +82,7 @@ export class Board {
       dimensions: [800, 600],
     };
     this.elements = [];
+    this.selectionTransforms = [];
 
     this._eventEmitter = new EventEmitter();
     this._cachedEvent = new BoardEvent("", null);
@@ -136,6 +145,9 @@ export class Board {
 
     this.initEventHandler();
     this.initCustomEventHandler();
+
+    // @todo: 传递画板的引用给元素，有没有更好的办法？？
+    (window as any).board = this;
   }
 
   private initSelector() {
@@ -164,9 +176,12 @@ export class Board {
   private initCustomEventHandler() {
     this._eventEmitter.on("selectStart", this.onSelectStart.bind(this));
     this._eventEmitter.on("createElement", this.onCreateElement.bind(this));
-    this._eventEmitter.on("createMove", this.onCreateMove.bind(this));
+    this._eventEmitter.on("creating", this.onCreateMove.bind(this));
     this._eventEmitter.on("createEnd", this.onCreateEnd.bind(this));
     this._eventEmitter.on("changeMode", this.onChangeMode.bind(this));
+    this._eventEmitter.on("dragStart", this.onDragStart.bind(this));
+    this._eventEmitter.on("draging", this.onDraging.bind(this));
+    this._eventEmitter.on("dragEnd", this.onDragEnd.bind(this));
   }
 
   private updateBoardPosition() {
@@ -179,14 +194,17 @@ export class Board {
     return "";
   }
 
-  private setSelected(elements: BaseElement[]) {
+  // @todo: 这个方法修饰符应该设置成 private or protected
+  public setSelected(elements: BaseElement[]) {
     this.selection = elements;
     let eventType = "elementSelected";
     if (!elements || elements.length == 0) {
       eventType = "nothingSelected";
     } else {
+      this.updateSelectionArea();
       this._cachedEvent.customData = {
         elements,
+        area: this.selectionArea,
       };
     }
     // @todo: create new events derived from BoardEvent
@@ -201,9 +219,25 @@ export class Board {
     this._eventEmitter.trigger("changeMode", [this._cachedEvent]);
   }
 
+  private updateSelectionArea() {
+    let elements = this.selection;
+    // calculate area
+    if (elements.length == 1) {
+      this.selectionArea.transform = elements[0].transform;
+      this.selectionArea.box.set4(
+        0,
+        0,
+        elements[0].frameWidth,
+        elements[0].frameHeight
+      );
+    } else {
+      this.selectionArea.transform.reset();
+      this.selectionArea.box = Box.mergeAll(elements.map((e) => e.AABB));
+    }
+  }
+
   // original events
   protected handleMouseDown(e: MouseEvent) {
-    console.log("mouse down...");
     console.log("currentMode: ", this.currentMode);
     console.log("currentInsertMode: ", this.currentCreateMode);
     this.MouseDown = true;
@@ -219,15 +253,25 @@ export class Board {
         startY: this.mouseStartY,
       };
       this._eventEmitter.trigger("createElement", [this._cachedEvent]);
+      return;
     }
+
     // 若点击在选中物体范围内则进入拖拽模式(enter drag mode if mouse down on the selected area)
-    else if (this.selection && this.clickInSelectedArea(e)) {
+    if (
+      this.selection &&
+      this.selection.length >= 1 &&
+      this.clickOnSelectedArea(e)
+    ) {
       this.setMode(EditorMode.DRAG);
     } else {
-      this.setMode(EditorMode.SELECT);
-      this._cachedEvent.mouseEvent = e;
-      this._cachedEvent.name = "selectStart";
-      this._eventEmitter.trigger("selectStart", [this._cachedEvent]);
+      if (this.clickOnElement({ x: this.mouseStartX, y: this.mouseStartY })) {
+        this.setMode(EditorMode.DRAG);
+      } else {
+        this.setMode(EditorMode.SELECT);
+        this._cachedEvent.mouseEvent = e;
+        this._cachedEvent.name = "selectStart";
+        this._eventEmitter.trigger("selectStart", [this._cachedEvent]);
+      }
     }
   }
   protected handleMouseUp(e: MouseEvent) {
@@ -247,17 +291,24 @@ export class Board {
   protected handleMouseMove(e: MouseEvent) {
     if (this.currentMode === EditorMode.CREATE && this.MouseDown) {
       this._cachedEvent.mouseEvent = e;
-      this._cachedEvent.name = "createMove";
       this._cachedEvent.customData = {
         startX: this.mouseStartX,
         startY: this.mouseStartY,
         endX: e.clientX - this.boardX,
         endY: e.clientY - this.boardY,
       };
-      this._eventEmitter.trigger("createMove", [this._cachedEvent]);
+      this._eventEmitter.trigger("creating", [this._cachedEvent]);
+    } else if (this.currentMode == EditorMode.DRAG) {
+      this._cachedEvent.mouseEvent = e;
+      this._cachedEvent.customData = {
+        startX: this.mouseStartX,
+        startY: this.mouseStartY,
+        endX: e.clientX - this.boardX,
+        endY: e.clientY - this.boardY,
+      };
+      this._eventEmitter.trigger("draging", [this._cachedEvent]);
     } else if (this.MouseDown) {
       this._cachedEvent.mouseEvent = e;
-      this._cachedEvent.name = "selectMove";
       this._cachedEvent.customData = {
         startX: this.mouseStartX,
         startY: this.mouseStartY,
@@ -267,12 +318,8 @@ export class Board {
       this._eventEmitter.trigger("selectMove", [this._cachedEvent]);
     }
   }
-  protected handleClick(e: MouseEvent) {
-    console.log("mouse click...");
-  }
-  protected handleDBClick(e: MouseEvent) {
-    console.log("mouse double click...");
-  }
+  protected handleClick(e: MouseEvent) {}
+  protected handleDBClick(e: MouseEvent) {}
   protected handleKeyDown(e: KeyboardEvent) {
     switch (e.key) {
       case "r":
@@ -319,6 +366,7 @@ export class Board {
     }
   }
   private onCreateMove(e: BoardEvent) {
+    this.updateSelectionArea();
     if (this.container.className) this.container.className = "";
     console.log("handle create move...");
     const { mouseEvent, customData } = e;
@@ -344,6 +392,19 @@ export class Board {
   private onCreateEnd(e: BoardEvent) {
     console.log("create element end...");
   }
+  private onDragStart(e: BoardEvent) {}
+  private onDraging(e: BoardEvent) {
+    const { mouseEvent, customData } = e;
+    const { startX, startY, endX, endY } = customData;
+    // @todo: 需要记录 drag 之前的 transform 信息
+    this.selection.forEach((n, index) => {
+      n.transform.e = this.selectionTransforms[index].e + endX - startX;
+      n.transform.f = this.selectionTransforms[index].f + endY - startY;
+      n.updateRendering();
+    });
+  }
+  private onDragEnd(e: BoardEvent) {}
+
   private onChangeMode(e: BoardEvent) {
     const { customData } = e;
     console.log("change mode:", customData.mode);
@@ -351,12 +412,35 @@ export class Board {
       this.setSelected([]);
     } else if (this.currentMode === EditorMode.CREATE) {
       this.container.className = "cursor-crosshair";
+    } else if (this.currentMode == EditorMode.DRAG) {
+      this.selectionTransforms = this.selection.map((n) => n.transform.clone());
+      this._cachedEvent.customData = {
+        transforms: this.selectionTransforms,
+      };
+      this._eventEmitter.trigger("dragStart", [this._cachedEvent]);
     }
   }
 
-  private clickInSelectedArea(e: MouseEvent) {
-    // @todo: complete this
-    return false;
+  private clickOnSelectedArea(e: MouseEvent) {
+    return this.selectionArea.include(
+      e.clientX - this.boardX,
+      e.clientY - this.boardY
+    );
+  }
+
+  private clickOnElement(pos) {
+    let { x, y } = pos;
+
+    let element = this.elements
+      .sort((a, b) => (a.zIndex > b.zIndex ? 1 : -1))
+      .find((e) => {
+        return new Area(
+          new Box(0, 0, e.frameWidth, e.frameHeight),
+          e.transform
+        ).include(x, y);
+      });
+    this.setSelected(element ? [element] : []);
+    return !!element;
   }
 }
 
