@@ -17,4 +17,6 @@ describe("transform", () => {
     expect(I.c).to.equal(0)
     expect(I.d).to.equal(2)
   })
+
+  // @todo: (1,3).scale(2,2,(3,1)) --> (-1, 5)
 })

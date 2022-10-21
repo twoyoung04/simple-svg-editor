@@ -78,6 +78,10 @@ export class Vector2 {
     return this
   }
 
+  public opposite() {
+    return new Vector2(-this._x, -this._y)
+  }
+
   public clone() {
     return new Vector2(this.x, this.y)
   }
