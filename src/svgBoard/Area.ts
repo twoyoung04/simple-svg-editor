@@ -35,6 +35,7 @@ export class Area {
 
   public nearestCornerDistance(p: Vector2) {
     let pp = p.clone().applyTransform(this._transform.inverse())
+    // 逆时针顺序
     let corners = [
       new Vector2(this.box.x, this.box.y),
       new Vector2(this.box.x, this.box.y2),
@@ -42,8 +43,7 @@ export class Area {
       new Vector2(this.box.x2, this.box.y),
     ]
     let distances = corners.map((c) => c.distance(pp))
-    let res = corners.find((c) => c.distance(pp) < 10)
-    return Math.min(...distances)
+    return distances
   }
 
   public center() {

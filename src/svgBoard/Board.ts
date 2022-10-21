@@ -14,6 +14,8 @@ import { Vector2 } from "./Vector"
 export class Board {
   private saveOptions: any
   private _selection: BaseElement[]
+  fx: number
+  fy: number
   public get selection(): BaseElement[] {
     return this._selection
   }
@@ -85,6 +87,7 @@ export class Board {
   private selectionTransforms: Transform[]
   private lastFrameWidth: number
   private lastFrameHeight: number
+  private cornerType: DIRECTION
 
   constructor(container: HTMLElement) {
     this.saveOptions = {}
@@ -217,7 +220,30 @@ export class Board {
   private updateMouseStatus(e: MouseEvent) {
     if (!this.selection || this.selection.length < 1) return false
     let [x, y] = [e.clientX - this.boardX, e.clientY - this.boardY]
-    let dis = this.selectionArea.nearestCornerDistance(new Vector2(x, y))
+    let distances = this.selectionArea.nearestCornerDistance(new Vector2(x, y))
+    let dis = 10000000,
+      index = -1
+    distances.forEach((d, i) => {
+      if (d < dis) {
+        dis = d
+        index = i
+      }
+    })
+    switch (index) {
+      case 0:
+        this.cornerType = DIRECTION.LT
+        break
+      case 1:
+        this.cornerType = DIRECTION.LB
+        break
+      case 2:
+        this.cornerType = DIRECTION.RB
+        break
+      case 3:
+        this.cornerType = DIRECTION.RT
+        break
+    }
+
     // this.MouseAtCorner = this.hoverAtSelectionCorner(new Vector2(x, y))
     if (dis < 5) {
       this.mouseStatus = MouseStatus.SCALE
@@ -475,7 +501,6 @@ export class Board {
     let a = new Vector2(startX - center.x, startY - center.y)
     let b = new Vector2(endX - center.x, endY - center.y)
     let theta = a.angle(b)
-    console.log("theta: ", theta)
     let flag = a.crossMultiply(b)
 
     theta = flag > 0 ? theta : Math.PI * 2 - theta
@@ -494,6 +519,24 @@ export class Board {
     // @todo: 还没考虑多选情况
     this.lastFrameWidth = this.selection[0].frameWidth
     this.lastFrameHeight = this.selection[0].frameHeight
+    let fx = 1
+    let fy = 1
+    switch (this.cornerType) {
+      default:
+      case DIRECTION.RB:
+        break
+      case DIRECTION.RT:
+        fy = -1
+        break
+      case DIRECTION.LB:
+        fx = -1
+        break
+      case DIRECTION.LT:
+        fx = fy = -1
+        break
+    }
+    this.fx = fx
+    this.fy = fy
   }
   private onScaling(e: BoardEvent) {
     const { mouseEvent, customData } = e
@@ -501,18 +544,37 @@ export class Board {
     let a = new Vector2(startX, startY)
     let b = new Vector2(endX, endY)
 
+    let fx = this.fx
+    let fy = this.fy
+
     this.selection.forEach((n, index) => {
       a.applyTransform(this.selectionTransforms[index].inverse())
       b.applyTransform(this.selectionTransforms[index].inverse())
       b.subtract(a)
+
+      // !!! @todo: avoid the value become 0
       let [x, y] = [
-        b.x / this.lastFrameWidth + 1,
-        b.y / this.lastFrameHeight + 1,
+        (fx * b.x) / this.lastFrameWidth + 1,
+        (fy * b.y) / this.lastFrameHeight + 1,
       ]
-      console.log(x, y)
+      let [absx, absy] = [
+        Math.max(Math.abs(x), 0.001),
+        Math.max(Math.abs(y), 0.001),
+      ]
+      x = x < 0 ? -absx : absx
+      y = y < 0 ? -absy : absy
       // @todo: 计算各种情况，此处仅仅计算了左上角
       n.transform.copy(
-        this.selectionTransforms[index].clone().scale(x, y, Vector2.zeros())
+        this.selectionTransforms[index]
+          .clone()
+          .scale(
+            x,
+            y,
+            new Vector2(
+              fx == -1 ? this.lastFrameWidth : 0,
+              fy == -1 ? this.lastFrameHeight : 0
+            )
+          )
       )
       n.updateRendering()
     })
@@ -584,12 +646,6 @@ export class Board {
     this.setSelected(element ? [element] : [])
     return !!element
   }
-
-  private hoverAtSelectionCorner(pos: Vector2) {
-    if (!this.selection || this.selection.length < 1) return false
-    // here is a calc trick. 将需要判断的点乘以矩阵的逆
-    return this.selectionArea.nearestCornerDistance(pos) < 10
-  }
 }
 
 export enum EditorMode {
@@ -616,6 +672,18 @@ export enum MouseStatus {
   DRAG,
   SCALE,
   ROTATE,
+}
+
+export enum DIRECTION {
+  LT,
+  LM,
+  LB,
+  CT,
+  CM,
+  CB,
+  RT,
+  RM,
+  RB,
 }
 
 export class EventHandler {
