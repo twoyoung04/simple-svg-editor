@@ -51,7 +51,9 @@ export class Vector2 {
   }
 
   public angle(v: Vector2) {
-    return Math.acos((this._x * v.x + this._y * v.y) / this.mod / v.mod)
+    return Math.acos(
+      Math.min((this._x * v.x + this._y * v.y) / this.mod / v.mod, 1)
+    )
   }
 
   public distance(v: Vector2) {

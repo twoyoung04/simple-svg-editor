@@ -38,7 +38,7 @@ export class Selector {
     setAttr(this.selectedRect, {
       fill: "none",
       stroke: "#009aff",
-      "stroke-width": "2",
+      "stroke-width": "2.5",
       "fill-opacity": "0.15",
       display: "none",
     })
@@ -53,6 +53,7 @@ export class Selector {
     board.eventEmitter.on("nothingSelected", this.onNothingSelected.bind(this))
     board.eventEmitter.on("draging", this.onDraging.bind(this))
     board.eventEmitter.on("rotating", this.onRotating.bind(this))
+    board.eventEmitter.on("scaling", this.onScaling.bind(this))
   }
 
   private onSelectStart(e) {}
@@ -107,6 +108,11 @@ export class Selector {
   }
 
   private onRotating(e: BoardEvent) {
+    // @todo: 应该把其中的逻辑抽取出来调用，不该直接调用回调
+    this.updateRender()
+  }
+
+  private onScaling(e: BoardEvent) {
     // @todo: 应该把其中的逻辑抽取出来调用，不该直接调用回调
     this.updateRender()
   }

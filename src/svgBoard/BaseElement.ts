@@ -3,10 +3,18 @@ import { Board } from "./Board"
 import { Log } from "./Log"
 import { Transform } from "./Transform"
 import { Vector2 } from "./Vector"
+import { Area } from "./Area"
 
 export abstract class BaseElement {
   protected id: string
   protected board: Board
+  protected _area: Area
+  public get area(): Area {
+    return this._area
+  }
+  public set area(value: Area) {
+    this._area = value
+  }
   protected _domInstance: SVGElement
   public get domInstance(): SVGElement {
     if (!this._domInstance) this.createDomInstance()
@@ -62,14 +70,9 @@ export abstract class BaseElement {
     this.transform.reset().translate2(x, y)
     this.board = (window as any).board
     this.AABB = new Box(x, y, w, h)
+    this.area = new Area(this.AABB, this.transform)
     // @todo: get the right index
     this.zIndex = 0
-    // FIX: 点击事件有问题
-    // this._domInstance.addEventListener("mousedown", () => {
-    //   console.log("---------");
-    //   // @todo: 元素是个外部类，从外部去调用 setSelected 有一定的危险性，maybe 可以换成抛出一个【requestSelected】Event？
-    //   this.board.setSelected([this]);
-    // });
 
     this.board.eventEmitter.on("createSart", this.onCreateStart.bind(this))
     this.board.eventEmitter.on("creating", this.onCreating.bind(this))

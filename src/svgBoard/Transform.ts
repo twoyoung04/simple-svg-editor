@@ -47,7 +47,13 @@ export class Transform {
     this.f = arr[5]
   }
   public copy(t: Transform) {
-    return Transform.from(t)
+    this.a = t.a
+    this.b = t.b
+    this.c = t.c
+    this.d = t.d
+    this.e = t.e
+    this.f = t.f
+    return this
   }
   public clone() {
     return Transform.from(this)
@@ -68,7 +74,7 @@ export class Transform {
   public translate2(x: number, y: number) {
     return this.rightMultiply(new Transform(1, 0, 0, 1, x, y))
   }
-  // 写该类的测试
+  // @todo: 写该类的测试
   public rotateAtOrigin(radius: number) {
     let [sina, cosa] = [Math.sin(radius), Math.cos(radius)]
     return this.rightMultiply(new Transform(cosa, sina, -sina, cosa, 0, 0))
@@ -78,6 +84,24 @@ export class Transform {
     return this.translate(Vector2.zeros().subtract(p))
       .rotateAtOrigin(radius)
       .translate(p)
+  }
+
+  public scale(x: number, y: number, p: Vector2) {
+    return this.copy(
+      Transform.identity().scaleAtOrigin(x, y).rightMultiply(this)
+    )
+  }
+  public scaleAtOrigin(x, y) {
+    this.rightMultiply(new Transform(x, 0, 0, y, 0, 0))
+    return this
+  }
+
+  public flipY() {
+    const { a, b, c, d, e, f } = this
+    let [x, y] = [1 / 2, 1 / 2]
+    let [x1, y1] = [a * x + c * y + e, b * x + d * y + f]
+    this.rightMultiply(new Transform(-1, 0, 0, 1, 0, 0)).translate2(2 * x1, 0)
+    return this
   }
 
   // 原矩阵在右边👉

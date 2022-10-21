@@ -44,15 +44,15 @@ export class Board {
   private lastZIndex = 0
   private currentCreateMode: CreateMode
 
-  private _MouseAtCorner = false
-  public get MouseAtCorner() {
-    return this._MouseAtCorner
+  private _mouseStatus = MouseStatus.DRAG
+  public get mouseStatus() {
+    return this._mouseStatus
   }
-  public set MouseAtCorner(value) {
-    if (this.MouseAtCorner == value) return
-    this._MouseAtCorner = value
+  public set mouseStatus(value) {
+    if (this.mouseStatus == value) return
+    this._mouseStatus = value
     this._cachedEvent.customData = {
-      mouseAtCorner: value,
+      mouseStatus: value,
     }
     this._eventEmitter.trigger("mouseStatusChange", [this._cachedEvent])
   }
@@ -81,7 +81,10 @@ export class Board {
   private curConfig: any
   private canvasBg: SVGElement
 
+  // @todo: 此处存放一些交互时需要暂存的信息，后续看下怎么优化
   private selectionTransforms: Transform[]
+  private lastFrameWidth: number
+  private lastFrameHeight: number
 
   constructor(container: HTMLElement) {
     this.saveOptions = {}
@@ -197,6 +200,8 @@ export class Board {
     this._eventEmitter.on("draging", this.onDraging.bind(this))
     this._eventEmitter.on("dragEnd", this.onDragEnd.bind(this))
     this._eventEmitter.on("rotating", this.onRotating.bind(this))
+    this._eventEmitter.on("scaleStart", this.onScaleStart.bind(this))
+    this._eventEmitter.on("scaling", this.onScaling.bind(this))
     this._eventEmitter.on(
       "mouseStatusChange",
       this.onMouseStatusChange.bind(this)
@@ -210,8 +215,17 @@ export class Board {
   }
 
   private updateMouseStatus(e: MouseEvent) {
+    if (!this.selection || this.selection.length < 1) return false
     let [x, y] = [e.clientX - this.boardX, e.clientY - this.boardY]
-    this.MouseAtCorner = this.hoverAtSelectionCorner(new Vector2(x, y))
+    let dis = this.selectionArea.nearestCornerDistance(new Vector2(x, y))
+    // this.MouseAtCorner = this.hoverAtSelectionCorner(new Vector2(x, y))
+    if (dis < 5) {
+      this.mouseStatus = MouseStatus.SCALE
+    } else if (dis < 10) {
+      this.mouseStatus = MouseStatus.ROTATE
+    } else {
+      this.mouseStatus = MouseStatus.DRAG
+    }
   }
 
   public exportSvg(): string {
@@ -220,6 +234,7 @@ export class Board {
 
   // @todo: 这个方法修饰符应该设置成 private or protected
   public setSelected(elements: BaseElement[]) {
+    console.log(elements)
     this.selection = elements
     let eventType = "elementSelected"
     if (!elements || elements.length == 0) {
@@ -279,8 +294,12 @@ export class Board {
       this._eventEmitter.trigger("createElement", [this._cachedEvent])
       return
     }
-    if (this._MouseAtCorner) {
+    if (this._mouseStatus == MouseStatus.ROTATE) {
       this.setMode(EditorMode.ROTATE)
+      return
+    }
+    if (this._mouseStatus == MouseStatus.SCALE) {
+      this.setMode(EditorMode.SCALE)
       return
     }
 
@@ -347,6 +366,15 @@ export class Board {
         endY: e.clientY - this.boardY,
       }
       this._eventEmitter.trigger("rotating", [this._cachedEvent])
+    } else if (this.currentMode == EditorMode.SCALE) {
+      this._cachedEvent.mouseEvent = e
+      this._cachedEvent.customData = {
+        startX: this.mouseStartX,
+        startY: this.mouseStartY,
+        endX: e.clientX - this.boardX,
+        endY: e.clientY - this.boardY,
+      }
+      this._eventEmitter.trigger("scaling", [this._cachedEvent])
     } else if (this.MouseDown) {
       this._cachedEvent.mouseEvent = e
       this._cachedEvent.customData = {
@@ -447,17 +475,51 @@ export class Board {
     let a = new Vector2(startX - center.x, startY - center.y)
     let b = new Vector2(endX - center.x, endY - center.y)
     let theta = a.angle(b)
+    console.log("theta: ", theta)
     let flag = a.crossMultiply(b)
-    theta = flag < 0 ? theta : Math.PI * 2 - theta
-    // @todo: 需要记录 drag 之前的 transform 信息
+
+    theta = flag > 0 ? theta : Math.PI * 2 - theta
     this.selection.forEach((n, index) => {
-      n.transform = this.selectionTransforms[index]
-        .clone()
-        .rotate(-theta, center)
+      n.transform.copy(
+        this.selectionTransforms[index].clone().rotate(theta, center)
+      )
       n.updateRendering()
     })
+
+    this.updateSelectionArea()
   }
   private onRotateEnd(e: BoardEvent) {}
+
+  private onScaleStart(e: BoardEvent) {
+    // @todo: 还没考虑多选情况
+    this.lastFrameWidth = this.selection[0].frameWidth
+    this.lastFrameHeight = this.selection[0].frameHeight
+  }
+  private onScaling(e: BoardEvent) {
+    const { mouseEvent, customData } = e
+    const { startX, startY, endX, endY } = customData
+    let a = new Vector2(startX, startY)
+    let b = new Vector2(endX, endY)
+
+    this.selection.forEach((n, index) => {
+      a.applyTransform(this.selectionTransforms[index].inverse())
+      b.applyTransform(this.selectionTransforms[index].inverse())
+      b.subtract(a)
+      let [x, y] = [
+        b.x / this.lastFrameWidth + 1,
+        b.y / this.lastFrameHeight + 1,
+      ]
+      console.log(x, y)
+      // @todo: 计算各种情况，此处仅仅计算了左上角
+      n.transform.copy(
+        this.selectionTransforms[index].clone().scale(x, y, Vector2.zeros())
+      )
+      n.updateRendering()
+    })
+
+    this.updateSelectionArea()
+  }
+  private onScaleEnd(e: BoardEvent) {}
 
   private onChangeMode(e: BoardEvent) {
     const { customData } = e
@@ -478,15 +540,28 @@ export class Board {
         transforms: this.selectionTransforms,
       }
       this._eventEmitter.trigger("rotateStart", [this._cachedEvent])
+    } else if (this.currentMode == EditorMode.SCALE) {
+      this.selectionTransforms = this.selection.map((n) => n.transform.clone())
+      this._cachedEvent.customData = {
+        transforms: this.selectionTransforms,
+      }
+      this._eventEmitter.trigger("scaleStart", [this._cachedEvent])
     }
   }
 
   private onMouseStatusChange(e: BoardEvent) {
     const { customData } = e
-    if (customData.mouseAtCorner) {
-      this.container.className = "cursor-move"
-    } else {
-      this.container.className = ""
+    switch (customData.mouseStatus) {
+      default:
+      case MouseStatus.DRAG:
+        this.container.className = ""
+        break
+      case MouseStatus.ROTATE:
+        this.container.className = "cursor-move"
+        break
+      case MouseStatus.SCALE:
+        this.container.className = "cursor-resize"
+        break
     }
   }
 
@@ -512,8 +587,8 @@ export class Board {
 
   private hoverAtSelectionCorner(pos: Vector2) {
     if (!this.selection || this.selection.length < 1) return false
-    // here is a calc trick. 先计算大致范围，并将需要判断的点乘以矩阵的逆
-    return this.selectionArea.nearCorner(pos)
+    // here is a calc trick. 将需要判断的点乘以矩阵的逆
+    return this.selectionArea.nearestCornerDistance(pos) < 10
   }
 }
 
@@ -521,6 +596,7 @@ export enum EditorMode {
   SELECT = "SELECT",
   DRAG = "DRAG",
   ROTATE = "ROTATE",
+  SCALE = "SCALE",
   CREATE = "CREATE",
   DRAW = "DRAW",
 }
@@ -535,6 +611,13 @@ export enum ResizeMode {
   CASUAL,
   SCALE,
 }
+
+export enum MouseStatus {
+  DRAG,
+  SCALE,
+  ROTATE,
+}
+
 export class EventHandler {
   private static instance: EventHandler = null
   private constructor() {}
