@@ -4,6 +4,7 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "webpack-dev-server --open",
+    "build": "webpack --mode production",
     "test": "mocha --reporter tap"
   },
   "devDependencies": {
