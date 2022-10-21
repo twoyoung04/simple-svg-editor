@@ -72,7 +72,10 @@ export class Transform {
     return this.translate2(v.x, v.y)
   }
   public translate2(x: number, y: number) {
-    return this.rightMultiply(new Transform(1, 0, 0, 1, x, y))
+    this.e += x
+    this.f += y
+    return this
+    // return this.rightMultiply(new Transform(1, 0, 0, 1, x, y))
   }
   // @todo: 写该类的测试
   public rotateAtOrigin(radius: number) {
@@ -88,11 +91,18 @@ export class Transform {
 
   public scale(x: number, y: number, p: Vector2) {
     return this.copy(
-      Transform.identity().scaleAtOrigin(x, y).rightMultiply(this)
+      Transform.identity()
+        .translate(p.opposite())
+        .scaleAtOrigin(x, y)
+        .translate(p)
+        .rightMultiply(this)
     )
   }
   public scaleAtOrigin(x, y) {
-    this.rightMultiply(new Transform(x, 0, 0, y, 0, 0))
+    this.a *= x
+    this.e *= x
+    this.d *= y
+    this.f *= y
     return this
   }
 
