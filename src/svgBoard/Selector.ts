@@ -68,6 +68,7 @@ export class Selector extends Manager {
   }
 
   private onElemetSelected(e: BoardEvent) {
+    this.clear()
     const elements = this.board.selection
     const area = e.customData.area
     // 获取最大宽高，若一个元素，则取该元素的 BBOX，多个元素则取 AABB 的并集
@@ -173,5 +174,9 @@ export class Selector extends Manager {
         d: pathStr,
       })
     }
+  }
+
+  private clear() {
+    this.selectedRectMap.forEach((e) => setAttr(e, { display: "none" }))
   }
 }
