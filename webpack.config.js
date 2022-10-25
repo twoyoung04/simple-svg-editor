@@ -1,6 +1,6 @@
-const { Configuration } = require("webpack");
-const path = require("path");
-const HtmlWebpackPlugin = require("html-webpack-plugin");
+const { Configuration } = require("webpack")
+const path = require("path")
+const HtmlWebpackPlugin = require("html-webpack-plugin")
 
 /**
  * @type {Configuration}
@@ -41,11 +41,12 @@ const config = {
   plugins: [
     new HtmlWebpackPlugin({
       title: "svgEditor",
+      // publicPath: "/simple-svg-editor",
     }),
   ],
   resolve: {
     extensions: [".tsx", ".ts", ".js"],
   },
-};
+}
 
-module.exports = config;
+module.exports = config

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "webpack-dev-server --open",
     "build": "webpack --mode production",
+    "deploy": "gh-pages -d dist",
     "test": "mocha --reporter tap"
   },
   "devDependencies": {
@@ -13,6 +14,7 @@
     "@types/node": "^18.11.3",
     "chai": "^4.3.6",
     "css-loader": "^6.7.1",
+    "gh-pages": "^4.0.0",
     "html-webpack-plugin": "*",
     "mocha": "^10.1.0",
     "style-loader": "^3.3.1",

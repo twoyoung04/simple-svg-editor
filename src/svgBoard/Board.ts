@@ -10,6 +10,7 @@ import { Area } from "./Area"
 import { Box } from "./Box"
 import { Transform } from "./Transform"
 import { Vector2 } from "./Vector"
+import { MouseStatusManager } from "./MouseStatusManager"
 
 export class Board {
   private saveOptions: any
@@ -22,18 +23,32 @@ export class Board {
   public set selection(value: BaseElement[]) {
     this._selection = value
   }
-  private selectionArea: Area
+  private _selectionArea: Area
+  public get selectionArea(): Area {
+    return this._selectionArea
+  }
+  public set selectionArea(value: Area) {
+    this._selectionArea = value
+  }
   private plugins: any[]
   private currentMode: EditorMode
   private currentResizeMode: ResizeMode
   private rubberBox: HTMLElement
   private curBBoxes: any[]
   private selector: Selector
-  private container: HTMLElement
+  private _container: HTMLElement
+  public get container(): HTMLElement {
+    return this._container
+  }
+  public set container(value: HTMLElement) {
+    this._container = value
+  }
   private elements: BaseElement[]
   private _svgdoc: Document
   private _eventEmitter: EventEmitter
   private _cachedEvent: BoardEvent
+
+  private mouseStatusManager: MouseStatusManager
 
   private boardX = 0
   private boardY = 0
@@ -45,19 +60,6 @@ export class Board {
   private mouseStartY = 0
   private lastZIndex = 0
   private currentCreateMode: CreateMode
-
-  private _mouseStatus = MouseStatus.DRAG
-  public get mouseStatus() {
-    return this._mouseStatus
-  }
-  public set mouseStatus(value) {
-    if (this.mouseStatus == value) return
-    this._mouseStatus = value
-    this._cachedEvent.customData = {
-      mouseStatus: value,
-    }
-    this._eventEmitter.trigger("mouseStatusChange", [this._cachedEvent])
-  }
 
   public get eventEmitter(): EventEmitter {
     return this._eventEmitter
@@ -87,7 +89,6 @@ export class Board {
   private selectionTransforms: Transform[]
   private lastFrameWidth: number
   private lastFrameHeight: number
-  private cornerType: DIRECTION
 
   constructor(container: HTMLElement) {
     this.saveOptions = {}
@@ -106,6 +107,7 @@ export class Board {
 
     this._eventEmitter = new EventEmitter()
     this._cachedEvent = new BoardEvent("", null)
+    this.mouseStatusManager = new MouseStatusManager(this)
 
     this.container = container
     this.svgdoc = document
@@ -217,43 +219,6 @@ export class Board {
     this.boardY = bbox.y
   }
 
-  private updateMouseStatus(e: MouseEvent) {
-    if (!this.selection || this.selection.length < 1) return false
-    let [x, y] = [e.clientX - this.boardX, e.clientY - this.boardY]
-    let distances = this.selectionArea.nearestCornerDistance(new Vector2(x, y))
-    let dis = 10000000,
-      index = -1
-    distances.forEach((d, i) => {
-      if (d < dis) {
-        dis = d
-        index = i
-      }
-    })
-    switch (index) {
-      case 0:
-        this.cornerType = DIRECTION.LT
-        break
-      case 1:
-        this.cornerType = DIRECTION.LB
-        break
-      case 2:
-        this.cornerType = DIRECTION.RB
-        break
-      case 3:
-        this.cornerType = DIRECTION.RT
-        break
-    }
-
-    // this.MouseAtCorner = this.hoverAtSelectionCorner(new Vector2(x, y))
-    if (dis < 5) {
-      this.mouseStatus = MouseStatus.SCALE
-    } else if (dis < 10) {
-      this.mouseStatus = MouseStatus.ROTATE
-    } else {
-      this.mouseStatus = MouseStatus.DRAG
-    }
-  }
-
   public exportSvg(): string {
     return ""
   }
@@ -303,6 +268,8 @@ export class Board {
 
   // original events
   protected handleMouseDown(e: MouseEvent) {
+    this._cachedEvent.mouseEvent = e
+    this._eventEmitter.trigger("mouseDown", [this._cachedEvent])
     console.log("currentMode: ", this.currentMode)
     console.log("currentInsertMode: ", this.currentCreateMode)
     this.MouseDown = true
@@ -320,11 +287,11 @@ export class Board {
       this._eventEmitter.trigger("createElement", [this._cachedEvent])
       return
     }
-    if (this._mouseStatus == MouseStatus.ROTATE) {
+    if (this.mouseStatusManager.mouseStatus == MouseStatus.ROTATE) {
       this.setMode(EditorMode.ROTATE)
       return
     }
-    if (this._mouseStatus == MouseStatus.SCALE) {
+    if (this.mouseStatusManager.mouseStatus == MouseStatus.SCALE) {
       this.setMode(EditorMode.SCALE)
       return
     }
@@ -364,7 +331,12 @@ export class Board {
     this.currentMode = EditorMode.SELECT
   }
   protected handleMouseMove(e: MouseEvent) {
-    this.updateMouseStatus(e)
+    let [x, y] = [e.clientX - this.boardX, e.clientY - this.boardY]
+    this._cachedEvent.customData || (this._cachedEvent.customData = {})
+    this._cachedEvent.customData.x = x
+    this._cachedEvent.customData.y = y
+    this._eventEmitter.trigger("mouseMove", [this._cachedEvent])
+
     if (this.currentMode === EditorMode.CREATE && this.MouseDown) {
       this._cachedEvent.mouseEvent = e
       this._cachedEvent.customData = {
@@ -521,7 +493,7 @@ export class Board {
     this.lastFrameHeight = this.selection[0].frameHeight
     let fx = 1
     let fy = 1
-    switch (this.cornerType) {
+    switch (this.mouseStatusManager.cornerType) {
       default:
       case DIRECTION.RB:
         break
@@ -611,21 +583,7 @@ export class Board {
     }
   }
 
-  private onMouseStatusChange(e: BoardEvent) {
-    const { customData } = e
-    switch (customData.mouseStatus) {
-      default:
-      case MouseStatus.DRAG:
-        this.container.className = ""
-        break
-      case MouseStatus.ROTATE:
-        this.container.className = "cursor-move"
-        break
-      case MouseStatus.SCALE:
-        this.container.className = "cursor-resize"
-        break
-    }
-  }
+  private onMouseStatusChange(e: BoardEvent) {}
 
   private clickOnSelectedArea(e: MouseEvent) {
     return this.selectionArea.include(
