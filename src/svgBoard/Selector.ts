@@ -1,21 +1,22 @@
 import { Board } from "./Board"
 import { BoardEvent } from "./EventEmitter"
 import { Log } from "./Log"
+import { Manager } from "./Manager"
 import { NS } from "./namespaces"
 import { Transform } from "./Transform"
 import { setAttr } from "./utilities"
 
 // @todo: refractor as a plugin
-export class Selector {
+export class Selector extends Manager {
   private container: SVGElement
   private selectorRoot: SVGGElement
   private selectRect: SVGRectElement
-  private board: Board
   private selectedRect: SVGRectElement
   private selectedCorner: SVGGElement
 
   private selectorTransform: Transform
   constructor(board: Board) {
+    super(board)
     this.board = board
     this.container = board.svgroot
     this.selectorRoot = board.svgdoc.createElementNS(NS.SVG, "g") as SVGGElement
@@ -56,11 +57,12 @@ export class Selector {
     board.eventEmitter.on("scaling", this.onScaling.bind(this))
   }
 
-  private onSelectStart(e) {}
+  private onSelectStart(e) {
+    setAttr(this.selectRect, { display: "inline" })
+  }
 
   private onSelectMove(e) {
     setAttr(this.selectRect, {
-      display: "inline",
       x: Math.min(e.customData.startX, e.customData.endX),
       y: Math.min(e.customData.startY, e.customData.endY),
       width: Math.abs(e.customData.endX - e.customData.startX),
@@ -72,8 +74,6 @@ export class Selector {
     this.selectRect.setAttribute("width", "0")
     this.selectRect.setAttribute("height", "0")
   }
-
-  // @todo: drag 时更新选择框
 
   private onElemetSelected(e: BoardEvent) {
     const elements = this.board.selection

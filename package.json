@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "webpack-dev-server --open",
     "build": "webpack --mode production",
+    "build:gh-pages": "webpack --mode production",
+    "predeploy": "npm run build:gh-pages",
     "deploy": "gh-pages -d dist",
     "test": "mocha --reporter tap"
   },

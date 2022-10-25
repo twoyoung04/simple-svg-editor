@@ -211,6 +211,10 @@ export class Board {
       "mouseStatusChange",
       this.onMouseStatusChange.bind(this)
     )
+    // 封装一层，获取鼠标相对 x,y
+    this._eventEmitter.on("mouseDown", this.onMouseDown.bind(this))
+    this._eventEmitter.on("mouseMove", this.onMouseMove.bind(this))
+    this._eventEmitter.on("mouseUp", this.onMouseUp.bind(this))
   }
 
   private updateBoardPosition() {
@@ -268,121 +272,29 @@ export class Board {
 
   // original events
   protected handleMouseDown(e: MouseEvent) {
-    this._cachedEvent.mouseEvent = e
-    this._eventEmitter.trigger("mouseDown", [this._cachedEvent])
-    console.log("currentMode: ", this.currentMode)
-    console.log("currentInsertMode: ", this.currentCreateMode)
-    this.MouseDown = true
     this.mouseStartX = e.clientX - this.boardX
     this.mouseStartY = e.clientY - this.boardY
-    // @todo: 元素被点击时，更新 this.selected
-    if (this.currentMode === EditorMode.CREATE) {
-      this._cachedEvent.mouseEvent = e
-      this._cachedEvent.name = "createElement"
-      this._cachedEvent.customData = {
-        type: this.currentCreateMode,
-        startX: this.mouseStartX,
-        startY: this.mouseStartY,
-      }
-      this._eventEmitter.trigger("createElement", [this._cachedEvent])
-      return
-    }
-    if (this.mouseStatusManager.mouseStatus == MouseStatus.ROTATE) {
-      this.setMode(EditorMode.ROTATE)
-      return
-    }
-    if (this.mouseStatusManager.mouseStatus == MouseStatus.SCALE) {
-      this.setMode(EditorMode.SCALE)
-      return
-    }
 
-    // 若点击在选中物体范围内则进入拖拽模式(enter drag mode if mouse down on the selected area)
-    if (
-      this.selection &&
-      this.selection.length >= 1 &&
-      this.clickOnSelectedArea(e)
-    ) {
-      this.setMode(EditorMode.DRAG)
-    } else {
-      if (
-        this.clickOnElement(new Vector2(this.mouseStartX, this.mouseStartY))
-      ) {
-        this.setMode(EditorMode.DRAG)
-      } else {
-        this.setMode(EditorMode.SELECT)
-        this._cachedEvent.mouseEvent = e
-        this._cachedEvent.name = "selectStart"
-        this._eventEmitter.trigger("selectStart", [this._cachedEvent])
-      }
-    }
-  }
-  protected handleMouseUp(e: MouseEvent) {
-    console.log("mouse up...")
-    this.MouseDown = false
-    if (this.currentMode === EditorMode.CREATE) {
-      this._cachedEvent.name = "createEnd"
-      this._cachedEvent.mouseEvent = e
-      this._eventEmitter.trigger("createEnd", [this._cachedEvent])
-    } else if (this.currentMode == EditorMode.SELECT) {
-      this._cachedEvent.name = "selectEnd"
-      this._cachedEvent.mouseEvent = e
-      this._eventEmitter.trigger("selectEnd", [this._cachedEvent])
-    }
-    this.currentMode = EditorMode.SELECT
+    this._cachedEvent.mouseEvent = e
+    this._cachedEvent.customData || (this._cachedEvent.customData = {})
+    this._cachedEvent.customData.x = this.mouseStartX
+    this._cachedEvent.customData.y = this.mouseStartY
+    this._eventEmitter.trigger("mouseDown", [this._cachedEvent])
   }
   protected handleMouseMove(e: MouseEvent) {
     let [x, y] = [e.clientX - this.boardX, e.clientY - this.boardY]
+    this._cachedEvent.mouseEvent = e
+
     this._cachedEvent.customData || (this._cachedEvent.customData = {})
     this._cachedEvent.customData.x = x
     this._cachedEvent.customData.y = y
     this._eventEmitter.trigger("mouseMove", [this._cachedEvent])
-
-    if (this.currentMode === EditorMode.CREATE && this.MouseDown) {
-      this._cachedEvent.mouseEvent = e
-      this._cachedEvent.customData = {
-        startX: this.mouseStartX,
-        startY: this.mouseStartY,
-        endX: e.clientX - this.boardX,
-        endY: e.clientY - this.boardY,
-      }
-      this._eventEmitter.trigger("creating", [this._cachedEvent])
-    } else if (this.currentMode == EditorMode.DRAG) {
-      this._cachedEvent.mouseEvent = e
-      this._cachedEvent.customData = {
-        startX: this.mouseStartX,
-        startY: this.mouseStartY,
-        endX: e.clientX - this.boardX,
-        endY: e.clientY - this.boardY,
-      }
-      this._eventEmitter.trigger("draging", [this._cachedEvent])
-    } else if (this.currentMode == EditorMode.ROTATE) {
-      this._cachedEvent.mouseEvent = e
-      this._cachedEvent.customData = {
-        startX: this.mouseStartX,
-        startY: this.mouseStartY,
-        endX: e.clientX - this.boardX,
-        endY: e.clientY - this.boardY,
-      }
-      this._eventEmitter.trigger("rotating", [this._cachedEvent])
-    } else if (this.currentMode == EditorMode.SCALE) {
-      this._cachedEvent.mouseEvent = e
-      this._cachedEvent.customData = {
-        startX: this.mouseStartX,
-        startY: this.mouseStartY,
-        endX: e.clientX - this.boardX,
-        endY: e.clientY - this.boardY,
-      }
-      this._eventEmitter.trigger("scaling", [this._cachedEvent])
-    } else if (this.MouseDown) {
-      this._cachedEvent.mouseEvent = e
-      this._cachedEvent.customData = {
-        startX: this.mouseStartX,
-        startY: this.mouseStartY,
-        endX: e.clientX - this.boardX,
-        endY: e.clientY - this.boardY,
-      }
-      this._eventEmitter.trigger("selectMove", [this._cachedEvent])
-    }
+  }
+  protected handleMouseUp(e: MouseEvent) {
+    this._cachedEvent.mouseEvent = e
+    this._cachedEvent.customData.x = e.clientX - this.boardX
+    this._cachedEvent.customData.y = e.clientY - this.boardY
+    this._eventEmitter.trigger("mouseUp", [this._cachedEvent])
   }
   protected handleClick(e: MouseEvent) {}
   protected handleDBClick(e: MouseEvent) {}
@@ -408,6 +320,99 @@ export class Board {
   }
 
   // custom events
+  private onMouseDown(e: BoardEvent) {
+    this.MouseDown = true
+    if (this.currentMode === EditorMode.CREATE) {
+      this._cachedEvent.name = "createElement"
+      this._cachedEvent.customData = {
+        type: this.currentCreateMode,
+        startX: this.mouseStartX,
+        startY: this.mouseStartY,
+      }
+      this._eventEmitter.trigger("createElement", [this._cachedEvent])
+      return
+    }
+    if (this.mouseStatusManager.mouseStatus == MouseStatus.ROTATE) {
+      this.setMode(EditorMode.ROTATE)
+      return
+    }
+    if (this.mouseStatusManager.mouseStatus == MouseStatus.SCALE) {
+      this.setMode(EditorMode.SCALE)
+      return
+    }
+
+    // 若点击在选中物体范围内则进入拖拽模式(enter drag mode if mouse down on the selected area)
+    if (
+      this.selection &&
+      this.selection.length >= 1 &&
+      this.clickOnSelectedArea(e.mouseEvent)
+    ) {
+      this.setMode(EditorMode.DRAG)
+    } else {
+      if (
+        this.clickOnElement(new Vector2(this.mouseStartX, this.mouseStartY))
+      ) {
+        this.setMode(EditorMode.DRAG)
+      } else {
+        this.setMode(EditorMode.SELECT)
+        this._cachedEvent.name = "selectStart"
+        this._eventEmitter.trigger("selectStart", [this._cachedEvent])
+      }
+    }
+  }
+  private onMouseMove(e: BoardEvent) {
+    if (this.currentMode === EditorMode.CREATE && this.MouseDown) {
+      this._cachedEvent.customData = {
+        startX: this.mouseStartX,
+        startY: this.mouseStartY,
+        endX: e.customData.x,
+        endY: e.customData.y,
+      }
+      this._eventEmitter.trigger("creating", [this._cachedEvent])
+    } else if (this.currentMode == EditorMode.DRAG) {
+      this._cachedEvent.customData = {
+        startX: this.mouseStartX,
+        startY: this.mouseStartY,
+        endX: e.customData.x,
+        endY: e.customData.y,
+      }
+      this._eventEmitter.trigger("draging", [this._cachedEvent])
+    } else if (this.currentMode == EditorMode.ROTATE) {
+      this._cachedEvent.customData = {
+        startX: this.mouseStartX,
+        startY: this.mouseStartY,
+        endX: e.customData.x,
+        endY: e.customData.y,
+      }
+      this._eventEmitter.trigger("rotating", [this._cachedEvent])
+    } else if (this.currentMode == EditorMode.SCALE) {
+      this._cachedEvent.customData = {
+        startX: this.mouseStartX,
+        startY: this.mouseStartY,
+        endX: e.customData.x,
+        endY: e.customData.y,
+      }
+      this._eventEmitter.trigger("scaling", [this._cachedEvent])
+    } else if (this.MouseDown) {
+      this._cachedEvent.customData = {
+        startX: this.mouseStartX,
+        startY: this.mouseStartY,
+        endX: e.customData.x,
+        endY: e.customData.y,
+      }
+      this._eventEmitter.trigger("selectMove", [this._cachedEvent])
+    }
+  }
+  private onMouseUp(e: BoardEvent) {
+    this.MouseDown = false
+    if (this.currentMode === EditorMode.CREATE) {
+      this._eventEmitter.trigger("createEnd", [this._cachedEvent])
+    } else if (this.currentMode == EditorMode.SELECT) {
+      this._eventEmitter.trigger("selectEnd", [this._cachedEvent])
+    }
+    this.currentMode = EditorMode.SELECT
+  }
+
   private onSelectStart(e: BoardEvent) {}
   private onSelectMove(e: BoardEvent) {}
   private onSelectEnd(e: BoardEvent) {}
