@@ -25,6 +25,7 @@ export class Area {
   public include(p: Vector2) {
     // @todo: finish this with transform
     let pp = p.clone().applyTransform(this._transform.inverse())
+    // debugger
     return (
       pp.x < this.box.x2 &&
       pp.x > this.box.x &&
@@ -34,7 +35,6 @@ export class Area {
   }
 
   public nearestCornerDistance(p: Vector2) {
-    let pp = p.clone().applyTransform(this._transform.inverse())
     // 逆时针顺序
     let corners = [
       new Vector2(this.box.x, this.box.y),
@@ -42,7 +42,9 @@ export class Area {
       new Vector2(this.box.x2, this.box.y2),
       new Vector2(this.box.x2, this.box.y),
     ]
-    let distances = corners.map((c) => c.distance(pp))
+    let distances = corners
+      .map((c) => c.applyTransform(this._transform))
+      .map((c) => c.distance(p))
     return distances
   }
 

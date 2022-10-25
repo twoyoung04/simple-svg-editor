@@ -4,9 +4,16 @@ import { Log } from "./Log"
 import { Transform } from "./Transform"
 import { Vector2 } from "./Vector"
 import { Area } from "./Area"
+import { generateId } from "./utilities"
 
 export abstract class BaseElement {
-  protected id: string
+  protected _id: string
+  public get id(): string {
+    return this._id
+  }
+  public set id(value: string) {
+    this._id = value
+  }
   protected board: Board
   protected _area: Area
   public get area(): Area {
@@ -23,19 +30,11 @@ export abstract class BaseElement {
   public set domInstance(value: SVGElement) {
     this._domInstance = value
   }
-  protected _frameWidth: number
   public get frameWidth(): number {
-    return this._frameWidth
+    return this.transform.a
   }
-  public set frameWidth(value: number) {
-    this._frameWidth = value
-  }
-  protected _frameHeight: number
   public get frameHeight(): number {
-    return this._frameHeight
-  }
-  public set frameHeight(value: number) {
-    this._frameHeight = value
+    return this.transform.d
   }
   protected absoluteBBox: Box
   protected _transform: Transform
@@ -64,13 +63,14 @@ export abstract class BaseElement {
     this._zIndex = value
   }
   constructor(x: number, y: number, w: number, h: number) {
-    this.frameWidth = w
-    this.frameHeight = h
+    this.id = generateId()
     this.transform = Transform.identity()
-    this.transform.reset().translate2(x, y)
+    this.transform.a = w
+    this.transform.d = h
+    this.transform.translate2(x, y)
     this.board = (window as any).board
     this.AABB = new Box(x, y, w, h)
-    this.area = new Area(this.AABB, this.transform)
+    this.area = new Area(new Box(0, 0, 1, 1), this.transform)
     // @todo: get the right index
     this.zIndex = 0
 
@@ -85,12 +85,12 @@ export abstract class BaseElement {
   }
   public onCreateEnd() {}
 
-  public setFrameWidth(w: number) {
-    this.frameWidth = w
-  }
-  public setFrameHeight(h: number) {
-    this.frameHeight = h
-  }
+  // public setFrameWidth(w: number) {
+  //   this.frameWidth = w
+  // }
+  // public setFrameHeight(h: number) {
+  //   this.frameHeight = h
+  // }
   protected abstract createDomInstance(): void
   public abstract updateRendering(): void
 }

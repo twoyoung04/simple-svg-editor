@@ -93,7 +93,7 @@ export class Board {
   constructor(container: HTMLElement) {
     this.saveOptions = {}
     this.selection = []
-    this.selectionArea = new Area(new Box(0, 0, 0, 0), Transform.identity())
+    this.selectionArea = new Area(new Box(0, 0, 1, 1), Transform.identity())
     this.plugins = []
     this.currentMode = EditorMode.SELECT
     this.currentResizeMode = ResizeMode.CASUAL
@@ -258,15 +258,15 @@ export class Board {
     // calculate area
     if (elements.length == 1) {
       this.selectionArea.transform = elements[0].transform
-      this.selectionArea.box.set4(
-        0,
-        0,
-        elements[0].frameWidth,
-        elements[0].frameHeight
-      )
+      // this.selectionArea.box.set4(
+      //   0,
+      //   0,
+      //   elements[0].frameWidth,
+      //   elements[0].frameHeight
+      // )
     } else {
       this.selectionArea.transform.reset()
-      this.selectionArea.box = Box.mergeAll(elements.map((e) => e.AABB))
+      // this.selectionArea.box = Box.mergeAll(elements.map((e) => e.AABB))
     }
   }
 
@@ -321,6 +321,7 @@ export class Board {
 
   // custom events
   private onMouseDown(e: BoardEvent) {
+    console.log("function onMouseDown...")
     this.MouseDown = true
     if (this.currentMode === EditorMode.CREATE) {
       this._cachedEvent.name = "createElement"
@@ -332,20 +333,22 @@ export class Board {
       this._eventEmitter.trigger("createElement", [this._cachedEvent])
       return
     }
+    console.log("not create mode...")
     if (this.mouseStatusManager.mouseStatus == MouseStatus.ROTATE) {
       this.setMode(EditorMode.ROTATE)
       return
     }
+    console.log("not rotate mode...")
     if (this.mouseStatusManager.mouseStatus == MouseStatus.SCALE) {
       this.setMode(EditorMode.SCALE)
       return
     }
-
+    console.log("not scale mode...")
     // 若点击在选中物体范围内则进入拖拽模式(enter drag mode if mouse down on the selected area)
     if (
       this.selection &&
       this.selection.length >= 1 &&
-      this.clickOnSelectedArea(e.mouseEvent)
+      this.clickOnSelectedArea(e)
     ) {
       this.setMode(EditorMode.DRAG)
     } else {
@@ -419,6 +422,7 @@ export class Board {
 
   private onCreateElement(e: BoardEvent) {
     const { mouseEvent, customData } = e
+    console.log(customData.type)
     switch (customData.type) {
       case CreateMode.RECT:
         let rect = new Rect(customData.startX, customData.startY, 0, 0)
@@ -438,6 +442,7 @@ export class Board {
   }
   private onCreateMove(e: BoardEvent) {
     this.updateSelectionArea()
+    console.log(this.selection)
     if (this.container.className) this.container.className = ""
     console.log("handle create move...")
     const { mouseEvent, customData } = e
@@ -445,14 +450,16 @@ export class Board {
       Math.abs(customData.endX - customData.startX),
       Math.abs(customData.endY - customData.startY),
     ]
-    this.selection[0].setFrameWidth(width)
-    this.selection[0].setFrameHeight(height)
+    console.log(width, height)
+    // 元素的实际位置和大小由 Box（0，0，1，1）与 transform 结合表示
+    this.selection[0].transform.a = width
+    this.selection[0].transform.d = height
     this.selection[0].transform.e = Math.min(customData.endX, customData.startX)
     this.selection[0].transform.f = Math.min(customData.endY, customData.startY)
     this.selection[0].updateRendering()
 
     // @check: 在创建与变换元素时候需要时刻更新选择器，抛出这个事件是否合理？
-    this._eventEmitter.trigger("elementSelected", [this._cachedEvent])
+    // this._eventEmitter.trigger("elementSelected", [this._cachedEvent])
   }
   private onCreateEnd(e: BoardEvent) {
     console.log("create element end...")
@@ -530,10 +537,7 @@ export class Board {
       b.subtract(a)
 
       // !!! @todo: avoid the value become 0
-      let [x, y] = [
-        (fx * b.x) / this.lastFrameWidth + 1,
-        (fy * b.y) / this.lastFrameHeight + 1,
-      ]
+      let [x, y] = [fx * b.x + 1, fy * b.y + 1]
       let [absx, absy] = [
         Math.max(Math.abs(x), 0.001),
         Math.max(Math.abs(y), 0.001),
@@ -544,14 +548,7 @@ export class Board {
       n.transform.copy(
         this.selectionTransforms[index]
           .clone()
-          .scale(
-            x,
-            y,
-            new Vector2(
-              fx == -1 ? this.lastFrameWidth : 0,
-              fy == -1 ? this.lastFrameHeight : 0
-            )
-          )
+          .scale(x, y, new Vector2(fx == -1 ? 1 : 0, fy == -1 ? 1 : 0))
       )
       n.updateRendering()
     })
@@ -590,9 +587,9 @@ export class Board {
 
   private onMouseStatusChange(e: BoardEvent) {}
 
-  private clickOnSelectedArea(e: MouseEvent) {
+  private clickOnSelectedArea(e: BoardEvent) {
     return this.selectionArea.include(
-      new Vector2(e.clientX - this.boardX, e.clientY - this.boardY)
+      new Vector2(e.customData.x, e.customData.y)
     )
   }
 
@@ -601,12 +598,11 @@ export class Board {
     let element = this.elements
       .sort((a, b) => (a.zIndex > b.zIndex ? 1 : -1))
       .find((e) => {
-        return new Area(
-          new Box(0, 0, e.frameWidth, e.frameHeight),
-          e.transform
-        ).include(pos)
+        return new Area(new Box(0, 0, 1, 1), e.transform).include(pos)
       })
     this.setSelected(element ? [element] : [])
+    console.log("into function clickONElement")
+    element && console.log("click on:", element.id)
     return !!element
   }
 }
@@ -632,9 +628,10 @@ export enum ResizeMode {
 }
 
 export enum MouseStatus {
-  DRAG,
-  SCALE,
-  ROTATE,
+  SELECT = "SELECT",
+  DRAG = "DRAG",
+  SCALE = "SCALE",
+  ROTATE = "ROTATE",
 }
 
 export enum DIRECTION {

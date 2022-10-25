@@ -21,6 +21,7 @@ export class MouseStatusManager extends Manager {
   }
   public set mouseStatus(value: MouseStatus) {
     if (this._mouseStatus === value) return
+    // console.log(this._mouseStatus)
     this._mouseStatus = value
     this._cachedEvent.customData.mouseStatus = value
     this.eventEmitter.trigger("mouseStatusChange", [this._cachedEvent])
@@ -42,7 +43,6 @@ export class MouseStatusManager extends Manager {
     Log.blue("mouse down in MouseStatusManager...")
   }
   public override onMouseMove(e: BoardEvent): void {
-    // console.log(e.customData.x, e.customData.y)
     this.updateMouseStatus(e)
   }
   public override onMouseUp(e: BoardEvent): void {}
@@ -69,7 +69,7 @@ export class MouseStatusManager extends Manager {
     let distances = this.board.selectionArea.nearestCornerDistance(
       new Vector2(x, y)
     )
-    let dis = 10000000,
+    let dis = Infinity,
       index = -1
     distances.forEach((d, i) => {
       if (d < dis) {
@@ -92,13 +92,15 @@ export class MouseStatusManager extends Manager {
         break
     }
 
-    // this.MouseAtCorner = this.hoverAtSelectionCorner(new Vector2(x, y))
     if (dis < 5) {
       this.mouseStatus = MouseStatus.SCALE
     } else if (dis < 10) {
       this.mouseStatus = MouseStatus.ROTATE
-    } else {
+      // @todo: finish this
+    } else if (false) {
       this.mouseStatus = MouseStatus.DRAG
+    } else {
+      this.mouseStatus = MouseStatus.SELECT
     }
   }
 }
