@@ -59,6 +59,7 @@ export class Box {
   }
   public merge(box: Box) {}
   public static mergeAll(boxes: Box[]) {
+    debugger
     if (boxes.length == 0) return null
     if (boxes.length == 1) return boxes[0]
     let minx = Math.min(...boxes.map((b) => b.x))
@@ -70,5 +71,14 @@ export class Box {
 
   public center() {
     return new Vector2(this.x + this.w / 2, this.y + this.h / 2)
+  }
+
+  public toVector2() {
+    return [
+      new Vector2(this.x, this.y),
+      new Vector2(this.x, this.y2),
+      new Vector2(this.x2, this.y2),
+      new Vector2(this.x2, this.y),
+    ]
   }
 }

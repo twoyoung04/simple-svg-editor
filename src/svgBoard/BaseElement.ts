@@ -62,6 +62,15 @@ export abstract class BaseElement {
   public set zIndex(value: number) {
     this._zIndex = value
   }
+
+  private _points: Vector2[]
+  public get points(): Vector2[] {
+    return this._points
+  }
+  public set points(value: Vector2[]) {
+    this._points = value
+  }
+
   constructor(x: number, y: number, w: number, h: number) {
     this.id = generateId()
     this.transform = Transform.identity()
@@ -82,6 +91,8 @@ export abstract class BaseElement {
   public onCreateStart() {}
   public onCreating() {
     Log.blue("on creating in baseelement")
+    if (this.board.selection[0] == this) {
+    }
   }
   public onCreateEnd() {}
 
@@ -93,4 +104,19 @@ export abstract class BaseElement {
   // }
   protected abstract createDomInstance(): void
   public abstract updateRendering(): void
+
+  // everytime element is transformed, this should be call
+  public updatePoints() {
+    let corners = this.area.box.toVector2()
+    this.points = corners.map((p) => p.applyTransform(this.transform))
+  }
+
+  protected updateAABB() {
+    let minX = Math.min(...this.points.map((p) => p.x))
+    let minY = Math.min(...this.points.map((p) => p.y))
+    let maxX = Math.max(...this.points.map((p) => p.x))
+    let maxY = Math.max(...this.points.map((p) => p.y))
+    // this.AABB.setSize(this.frameWidth, this.frameHeight)
+    this.AABB.set4(minX, minY, maxX - minX, maxY - minY)
+  }
 }

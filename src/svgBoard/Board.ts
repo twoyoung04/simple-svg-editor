@@ -43,7 +43,13 @@ export class Board {
   public set container(value: HTMLElement) {
     this._container = value
   }
-  private elements: BaseElement[]
+  private _elements: BaseElement[]
+  public get elements(): BaseElement[] {
+    return this._elements
+  }
+  public set elements(value: BaseElement[]) {
+    this._elements = value
+  }
   private _svgdoc: Document
   private _eventEmitter: EventEmitter
   private _cachedEvent: BoardEvent
@@ -204,9 +210,12 @@ export class Board {
     this._eventEmitter.on("dragStart", this.onDragStart.bind(this))
     this._eventEmitter.on("draging", this.onDraging.bind(this))
     this._eventEmitter.on("dragEnd", this.onDragEnd.bind(this))
+    this._eventEmitter.on("rotateStart", this.onRotateStart.bind(this))
     this._eventEmitter.on("rotating", this.onRotating.bind(this))
+    this._eventEmitter.on("rotateEnd", this.onRotateEnd.bind(this))
     this._eventEmitter.on("scaleStart", this.onScaleStart.bind(this))
     this._eventEmitter.on("scaling", this.onScaling.bind(this))
+    this._eventEmitter.on("scaleEnd", this.onScaleEnd.bind(this))
     this._eventEmitter.on(
       "mouseStatusChange",
       this.onMouseStatusChange.bind(this)
@@ -235,6 +244,7 @@ export class Board {
     if (!elements || elements.length == 0) {
       eventType = "nothingSelected"
     } else {
+      // elements.forEach((e) => console.log(e.id, e.transform.a))
       this.updateSelectionArea()
       this._cachedEvent.customData = {
         elements,
@@ -257,16 +267,15 @@ export class Board {
     let elements = this.selection
     // calculate area
     if (elements.length == 1) {
-      this.selectionArea.transform = elements[0].transform
-      // this.selectionArea.box.set4(
-      //   0,
-      //   0,
-      //   elements[0].frameWidth,
-      //   elements[0].frameHeight
-      // )
+      this.selectionArea.transform = elements[0].transform.clone()
+      this.selectionArea.box = new Box(0, 0, 1, 1)
     } else {
       this.selectionArea.transform.reset()
-      // this.selectionArea.box = Box.mergeAll(elements.map((e) => e.AABB))
+      this.selectionArea.box = Box.mergeAll(elements.map((e) => e.AABB))
+      // console.log(elements[0].transform)
+      // console.log(elements[1].transform)
+      // console.log(elements.map((e) => e.AABB))
+      // console.log(this.selectionArea.box)
     }
   }
 
@@ -412,6 +421,12 @@ export class Board {
       this._eventEmitter.trigger("createEnd", [this._cachedEvent])
     } else if (this.currentMode == EditorMode.SELECT) {
       this._eventEmitter.trigger("selectEnd", [this._cachedEvent])
+    } else if (this.currentMode == EditorMode.ROTATE) {
+      this._eventEmitter.trigger("rotateEnd", [this._cachedEvent])
+    } else if (this.currentMode == EditorMode.DRAG) {
+      this._eventEmitter.trigger("dragEnd", [this._cachedEvent])
+    } else if (this.currentMode == EditorMode.SCALE) {
+      this._eventEmitter.trigger("scaleEnd", [this._cachedEvent])
     }
     this.currentMode = EditorMode.SELECT
   }
@@ -457,9 +472,6 @@ export class Board {
     this.selection[0].transform.e = Math.min(customData.endX, customData.startX)
     this.selection[0].transform.f = Math.min(customData.endY, customData.startY)
     this.selection[0].updateRendering()
-
-    // @check: 在创建与变换元素时候需要时刻更新选择器，抛出这个事件是否合理？
-    // this._eventEmitter.trigger("elementSelected", [this._cachedEvent])
   }
   private onCreateEnd(e: BoardEvent) {
     console.log("create element end...")
@@ -474,6 +486,7 @@ export class Board {
       n.transform.f = this.selectionTransforms[index].f + endY - startY
       n.updateRendering()
     })
+    this.updateSelectionArea()
   }
   private onDragEnd(e: BoardEvent) {}
 
@@ -488,16 +501,17 @@ export class Board {
     let flag = a.crossMultiply(b)
 
     theta = flag > 0 ? theta : Math.PI * 2 - theta
+    console.log((theta / Math.PI) * 180)
     this.selection.forEach((n, index) => {
       n.transform.copy(
         this.selectionTransforms[index].clone().rotate(theta, center)
       )
       n.updateRendering()
     })
-
+  }
+  private onRotateEnd(e: BoardEvent) {
     this.updateSelectionArea()
   }
-  private onRotateEnd(e: BoardEvent) {}
 
   private onScaleStart(e: BoardEvent) {
     // @todo: 还没考虑多选情况
@@ -525,15 +539,20 @@ export class Board {
   private onScaling(e: BoardEvent) {
     const { mouseEvent, customData } = e
     const { startX, startY, endX, endY } = customData
-    let a = new Vector2(startX, startY)
-    let b = new Vector2(endX, endY)
+    let start = new Vector2(startX, startY)
+    let end = new Vector2(endX, endY)
 
     let fx = this.fx
     let fy = this.fy
 
+    // @todo: 目前都是相对于自己的左上角缩放
     this.selection.forEach((n, index) => {
-      a.applyTransform(this.selectionTransforms[index].inverse())
-      b.applyTransform(this.selectionTransforms[index].inverse())
+      let a = start
+        .clone()
+        .applyTransform(this.selectionTransforms[index].inverse())
+      let b = end
+        .clone()
+        .applyTransform(this.selectionTransforms[index].inverse())
       b.subtract(a)
 
       // !!! @todo: avoid the value become 0
@@ -553,9 +572,11 @@ export class Board {
       n.updateRendering()
     })
 
+    // this.updateSelectionArea()
+  }
+  private onScaleEnd(e: BoardEvent) {
     this.updateSelectionArea()
   }
-  private onScaleEnd(e: BoardEvent) {}
 
   private onChangeMode(e: BoardEvent) {
     const { customData } = e
@@ -644,15 +665,4 @@ export enum DIRECTION {
   RT,
   RM,
   RB,
-}
-
-export class EventHandler {
-  private static instance: EventHandler = null
-  private constructor() {}
-  static getInstance() {
-    if (!EventHandler.instance) {
-      EventHandler.instance = new EventHandler()
-    }
-    return EventHandler.instance
-  }
 }

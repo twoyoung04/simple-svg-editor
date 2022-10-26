@@ -42,15 +42,9 @@ export class Rect extends BaseElement {
     this.attr.height = this.frameHeight
   }
 
-  private updateAABB() {
-    // this.AABB.setSize(this.frameWidth, this.frameHeight)
-  }
-
   public updateRendering(): void {
-    // @architecture: refractor to DI（改成依赖注入的方式，支持多平台，如 WebGL）
-    // @todo: frameWidth，frameHeight + rotation -> width, height
-    // this.updateAttr();
-    // setAttr(this._domInstance, this.attr)
+    this.updatePoints()
+    this.updateAABB()
     const { a, b, c, d, e, f } = this._transform
     setAttr(this._domInstance, {
       transform: `matrix(${a},${b},${c},${d},${e},${f})`,
