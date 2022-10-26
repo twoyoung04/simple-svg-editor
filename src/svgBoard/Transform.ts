@@ -98,6 +98,13 @@ export class Transform {
         .rightMultiply(this)
     )
   }
+  public scale2(x: number, y: number, p: Vector2) {
+    return this.translate(p.opposite()).scale2AtOrigin(x, y).translate(p)
+  }
+  public scale2AtOrigin(x: number, y: number) {
+    return this.rightMultiply(new Transform(x, 0, 0, y, 0, 0))
+  }
+
   public scaleAtOrigin(x, y) {
     this.a *= x
     this.e *= x

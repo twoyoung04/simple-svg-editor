@@ -59,7 +59,6 @@ export class Box {
   }
   public merge(box: Box) {}
   public static mergeAll(boxes: Box[]) {
-    debugger
     if (boxes.length == 0) return null
     if (boxes.length == 1) return boxes[0]
     let minx = Math.min(...boxes.map((b) => b.x))

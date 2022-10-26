@@ -138,7 +138,6 @@ export class Selector extends Manager {
     const elements = this.board.selection
     // 获取最大宽高，若一个元素，则取该元素的 BBOX，多个元素则取 AABB 的并集
     if (!elements) return
-    if (elements.length == 2) debugger
     for (let element of elements) {
       const { transform } = element
       if (!this.selectedRectMap.has(element.id)) {

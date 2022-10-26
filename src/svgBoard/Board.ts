@@ -546,33 +546,61 @@ export class Board {
     let fy = this.fy
 
     // @todo: 目前都是相对于自己的左上角缩放
-    this.selection.forEach((n, index) => {
-      let a = start
-        .clone()
-        .applyTransform(this.selectionTransforms[index].inverse())
-      let b = end
-        .clone()
-        .applyTransform(this.selectionTransforms[index].inverse())
-      b.subtract(a)
+    if (this.selection.length == 1) {
+      this.selection.forEach((n, index) => {
+        let a = start
+          .clone()
+          .applyTransform(this.selectionTransforms[index].inverse())
+        let b = end
+          .clone()
+          .applyTransform(this.selectionTransforms[index].inverse())
+        b.subtract(a)
 
-      // !!! @todo: avoid the value become 0
-      let [x, y] = [fx * b.x + 1, fy * b.y + 1]
+        // !!! @todo: avoid the value become 0
+        let [x, y] = [fx * b.x + 1, fy * b.y + 1]
+        let [absx, absy] = [
+          Math.max(Math.abs(x), 0.001),
+          Math.max(Math.abs(y), 0.001),
+        ]
+        x = x < 0 ? -absx : absx
+        y = y < 0 ? -absy : absy
+        // @todo: 计算各种情况，此处仅仅计算了左上角
+        n.transform.copy(
+          this.selectionTransforms[index]
+            .clone()
+            .scale(x, y, new Vector2(fx == -1 ? 1 : 0, fy == -1 ? 1 : 0))
+        )
+        n.updateRendering()
+      })
+    } else {
+      // 以下只适合多选
+      let [tw, th] = [this.selectionArea.box.w, this.selectionArea.box.h]
+      let v = end.subtract(start)
+      let [x, y] = [(fx * v.x) / tw + 1, (fy * v.y) / th + 1]
       let [absx, absy] = [
         Math.max(Math.abs(x), 0.001),
         Math.max(Math.abs(y), 0.001),
       ]
       x = x < 0 ? -absx : absx
       y = y < 0 ? -absy : absy
-      // @todo: 计算各种情况，此处仅仅计算了左上角
-      n.transform.copy(
-        this.selectionTransforms[index]
-          .clone()
-          .scale(x, y, new Vector2(fx == -1 ? 1 : 0, fy == -1 ? 1 : 0))
-      )
-      n.updateRendering()
-    })
+      let box = this.selectionArea.box
 
-    // this.updateSelectionArea()
+      this.selection.forEach((n, index) => {
+        // @todo: 计算各种情况，此处仅仅计算了左上角
+        n.transform.copy(
+          this.selectionTransforms[index]
+            .clone()
+            .scale2(
+              x,
+              y,
+              new Vector2(box.x, box.y).add(
+                new Vector2(fx == -1 ? box.w : 0, fy == -1 ? box.h : 0)
+              )
+            )
+        )
+        n.updateRendering()
+      })
+    }
   }
   private onScaleEnd(e: BoardEvent) {
     this.updateSelectionArea()
