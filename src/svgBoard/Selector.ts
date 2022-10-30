@@ -1,6 +1,7 @@
 import { Area } from "./Area"
 import { Board } from "./Board"
 import { Box } from "./Box"
+import config from "./config"
 import { BoardEvent } from "./EventEmitter"
 import { Log } from "./Log"
 import { Manager } from "./Manager"
@@ -14,7 +15,11 @@ export class Selector extends Manager {
   private container: SVGElement
   private selectorRoot: SVGGElement
   private selectRect: SVGRectElement
-  private selectedRectMap: Map<string, SVGPathElement>
+  private activeGroup: SVGGElement
+  private activeMap: Map<string, SVGPathElement>
+  private manuplator: SVGGElement
+  private manuplatorRect: SVGPathElement
+  private manuplatorPoints: SVGGElement
   private selectedCorner: SVGGElement
   private selectArea: Area
   private lastSelectedNum: number
@@ -29,7 +34,39 @@ export class Selector extends Manager {
       NS.SVG,
       "rect"
     ) as SVGRectElement
-    this.selectedRectMap = new Map()
+    this.activeGroup = board.svgdoc.createElementNS(NS.SVG, "g") as SVGGElement
+    this.selectorRoot.append(this.activeGroup)
+    this.activeMap = new Map()
+
+    this.manuplator = board.svgdoc.createElementNS(NS.SVG, "g") as SVGGElement
+    this.selectorRoot.append(this.manuplator)
+    setAttr(this.manuplator, { display: "none" })
+
+    this.manuplatorRect = board.svgdoc.createElementNS(
+      NS.SVG,
+      "path"
+    ) as SVGPathElement
+    setAttr(this.manuplatorRect, {
+      fill: "none",
+      "stroke-width": 2.5,
+      stroke: config.COLOR_SELECT,
+    })
+    this.manuplator.append(this.manuplatorRect)
+    this.manuplatorPoints = board.svgdoc.createElementNS(
+      NS.SVG,
+      "g"
+    ) as SVGGElement
+    this.manuplator.append(this.manuplatorPoints)
+    for (let i = 0; i < 4; i++) {
+      let point = board.svgdoc.createElementNS(NS.SVG, "path")
+      setAttr(point, {
+        fill: "#fcfcfc",
+        "stroke-width": 1.5,
+        stroke: config.COLOR_SELECT,
+      })
+      this.manuplatorPoints.append(point)
+    }
+
     this.lastSelectedNum = 0
     this.selectArea = new Area(new Box(0, 0, 1, 1), Transform.identity())
     // @todo: 一些初始设置blabla
@@ -93,7 +130,8 @@ export class Selector extends Manager {
   }
 
   private onNothingSelected(e: BoardEvent) {
-    this.selectedRectMap.forEach((ele) => setAttr(ele, { display: "none" }))
+    this.activeMap.forEach((ele) => setAttr(ele, { display: "none" }))
+    setAttr(this.manuplator, { display: "none" })
   }
 
   private onDragStart(e: BoardEvent) {}
@@ -123,7 +161,7 @@ export class Selector extends Manager {
     if (elements.length === 1) {
       const { transform, frameWidth, frameHeight } = elements[0]
       let rect = { x: 0, y: 0, width: frameWidth, height: frameHeight }
-      setAttr(this.selectedRectMap.get(elements[0].id), {
+      setAttr(this.activeMap.get(elements[0].id), {
         transform: transform.cssString(),
         display: "inline",
         ...rect,
@@ -140,17 +178,17 @@ export class Selector extends Manager {
     if (!elements) return
     for (let element of elements) {
       const { transform } = element
-      if (!this.selectedRectMap.has(element.id)) {
+      if (!this.activeMap.has(element.id)) {
         let ele = this.board.svgdoc.createElementNS(
           NS.SVG,
           "path"
         ) as SVGPathElement
-        this.selectedRectMap.set(element.id, ele)
-        this.selectorRoot.append(ele)
+        this.activeMap.set(element.id, ele)
+        this.activeGroup.append(ele)
         setAttr(ele, {
           id: element.id,
           fill: "none",
-          stroke: "#009aff",
+          stroke: config.COLOR_SELECT,
           "stroke-width": "2.5",
           "fill-opacity": "0.15",
           display: "none",
@@ -165,14 +203,81 @@ export class Selector extends Manager {
       ]
       ps.forEach((p) => p.applyTransform(transform))
       let pathStr = "M" + ps.map((p) => p.x + "," + p.y).join("L") + "Z"
-      setAttr(this.selectedRectMap.get(element.id), {
+      setAttr(this.activeMap.get(element.id), {
         display: "inline",
         d: pathStr,
+      })
+    }
+    if (elements.length === 1) {
+      setAttr(this.manuplator, {
+        display: "inline",
+      })
+      let { box } = elements[0].area
+      let ps = box.toVector2()
+      ps.forEach((p) => p.applyTransform(elements[0].transform))
+
+      // 选中单个元素的框是和元素的框一致的
+      setAttr(this.manuplatorRect, {
+        display: "none",
+      })
+      const width = 6
+      let points = Array.from(this.manuplatorPoints.children)
+      // 操作框仅需要与旋转值保持同步
+      // FIX: 此处的旋转值还有一点问题
+      points.forEach((p, i) => {
+        setAttr(p, {
+          d: generatePathStr(
+            ps[i].x,
+            ps[i].y,
+            width,
+            elements[0].transform.rotation
+          ),
+        })
+      })
+    } else if (elements.length >= 2) {
+      // show the selector outside
+      setAttr(this.manuplator, {
+        display: "inline",
+      })
+      setAttr(this.manuplatorRect, {
+        display: "inline",
+      })
+      let { box } = this.board.selectionArea
+      let ps = box.toVector2()
+      let pathStr = `M${box.x},${box.y}L${box.x},${box.y2}L${box.x2},${box.y2}L${box.x2},${box.y}Z`
+      setAttr(this.manuplator.children[0], {
+        d: pathStr,
+      })
+      const width = 6
+      let points = Array.from(this.manuplatorPoints.children)
+      points.forEach((p, i) => {
+        setAttr(p, { d: generatePathStr(ps[i].x, ps[i].y, width) })
       })
     }
   }
 
   private clear() {
-    this.selectedRectMap.forEach((e) => setAttr(e, { display: "none" }))
+    this.activeMap.forEach((e) => setAttr(e, { display: "none" }))
   }
+}
+
+export function generatePathStr(
+  x: number,
+  y: number,
+  width: number,
+  rotation?: number
+) {
+  let points = [
+    new Vector2(x - width / 2, y - width / 2),
+    new Vector2(x - width / 2, y + width / 2),
+    new Vector2(x + width / 2, y + width / 2),
+    new Vector2(x + width / 2, y - width / 2),
+  ]
+  if (rotation) {
+    points.forEach((p) =>
+      p.applyTransform(Transform.identity().rotate(rotation, new Vector2(x, y)))
+    )
+  }
+  let pathStr = "M" + points.map((p) => p.x + "," + p.y).join("L") + "Z"
+  return pathStr
 }

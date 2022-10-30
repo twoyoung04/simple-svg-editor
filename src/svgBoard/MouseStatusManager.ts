@@ -55,7 +55,7 @@ export class MouseStatusManager extends Manager {
         this.board.container.className = ""
         break
       case MouseStatus.ROTATE:
-        this.board.container.className = "cursor-move"
+        this.board.container.className = "cursor-rotate"
         break
       case MouseStatus.SCALE:
         this.board.container.className = "cursor-resize"

@@ -3,6 +3,7 @@ import { BoardEvent } from "./EventEmitter"
 import { Manager } from "./Manager"
 
 // @todo: finish this class
+// 暂时没有用的一个类 hhh
 export class NodeManager extends Manager {
   constructor(board: Board) {
     super(board)

@@ -8,6 +8,15 @@ export class Transform {
   public e: number
   public f: number
 
+  public get rotation() {
+    // @todo: 未考虑缩放为负数的情况
+    let t = Math.acos(this.a / Math.sqrt(this.a * this.a + this.c * this.c))
+    return this.c > 0 ? Math.PI * 2 - t : t
+  }
+  public get rotationTransform() {
+    return Transform.fromAngle(this.rotation)
+  }
+
   constructor(
     a: number,
     b: number,
@@ -29,6 +38,16 @@ export class Transform {
   }
   public static from(o: TransformLike) {
     return new Transform(o.a, o.b, o.c, o.d, o.e, o.f)
+  }
+  public static fromAngle(theta: number) {
+    return new Transform(
+      Math.cos(theta),
+      Math.sin(theta),
+      -Math.cos(theta),
+      Math.sin(theta),
+      0,
+      0
+    )
   }
   public set(o: TransformLike) {
     this.a = o.a

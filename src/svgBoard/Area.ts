@@ -22,6 +22,10 @@ export class Area {
     this.transform = tranform
   }
 
+  public clone() {
+    return new Area(this.box.clone(), this.transform.clone())
+  }
+
   public include(p: Vector2) {
     // @todo: finish this with transform
     let pp = p.clone().applyTransform(this._transform.inverse())

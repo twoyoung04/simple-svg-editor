@@ -17,6 +17,7 @@ export class Board {
   private _selection: BaseElement[]
   fx: number
   fy: number
+  lastSelectionArea: Area
   public get selection(): BaseElement[] {
     return this._selection
   }
@@ -476,7 +477,9 @@ export class Board {
   private onCreateEnd(e: BoardEvent) {
     console.log("create element end...")
   }
-  private onDragStart(e: BoardEvent) {}
+  private onDragStart(e: BoardEvent) {
+    this.selectionTransforms = this.selection.map((n) => n.transform.clone())
+  }
   private onDraging(e: BoardEvent) {
     const { mouseEvent, customData } = e
     const { startX, startY, endX, endY } = customData
@@ -490,24 +493,27 @@ export class Board {
   }
   private onDragEnd(e: BoardEvent) {}
 
-  private onRotateStart(e: BoardEvent) {}
+  private onRotateStart(e: BoardEvent) {
+    this.selectionTransforms = this.selection.map((n) => n.transform.clone())
+    this.lastSelectionArea = this.selectionArea.clone()
+  }
   private onRotating(e: BoardEvent) {
     const { mouseEvent, customData } = e
     const { startX, startY, endX, endY } = customData
-    let center = this.selectionArea.center()
+    let center = this.lastSelectionArea.center()
     let a = new Vector2(startX - center.x, startY - center.y)
     let b = new Vector2(endX - center.x, endY - center.y)
     let theta = a.angle(b)
     let flag = a.crossMultiply(b)
 
     theta = flag > 0 ? theta : Math.PI * 2 - theta
-    console.log((theta / Math.PI) * 180)
     this.selection.forEach((n, index) => {
       n.transform.copy(
         this.selectionTransforms[index].clone().rotate(theta, center)
       )
       n.updateRendering()
     })
+    this.updateSelectionArea()
   }
   private onRotateEnd(e: BoardEvent) {
     this.updateSelectionArea()
@@ -517,6 +523,8 @@ export class Board {
     // @todo: 还没考虑多选情况
     this.lastFrameWidth = this.selection[0].frameWidth
     this.lastFrameHeight = this.selection[0].frameHeight
+    this.selectionTransforms = this.selection.map((n) => n.transform.clone())
+    this.lastSelectionArea = this.selectionArea.clone()
     let fx = 1
     let fy = 1
     switch (this.mouseStatusManager.cornerType) {
@@ -545,36 +553,35 @@ export class Board {
     let fx = this.fx
     let fy = this.fy
 
-    // @todo: 目前都是相对于自己的左上角缩放
+    // @todo: 待优化，这里看下怎么复用下两种情况下的代码
     if (this.selection.length == 1) {
-      this.selection.forEach((n, index) => {
-        let a = start
-          .clone()
-          .applyTransform(this.selectionTransforms[index].inverse())
-        let b = end
-          .clone()
-          .applyTransform(this.selectionTransforms[index].inverse())
-        b.subtract(a)
+      let n = this.selection[0]
+      let a = start
+        .clone()
+        .applyTransform(this.selectionTransforms[0].inverse())
+      let b = end.clone().applyTransform(this.selectionTransforms[0].inverse())
+      b.subtract(a)
 
-        // !!! @todo: avoid the value become 0
-        let [x, y] = [fx * b.x + 1, fy * b.y + 1]
-        let [absx, absy] = [
-          Math.max(Math.abs(x), 0.001),
-          Math.max(Math.abs(y), 0.001),
-        ]
-        x = x < 0 ? -absx : absx
-        y = y < 0 ? -absy : absy
-        // @todo: 计算各种情况，此处仅仅计算了左上角
-        n.transform.copy(
-          this.selectionTransforms[index]
-            .clone()
-            .scale(x, y, new Vector2(fx == -1 ? 1 : 0, fy == -1 ? 1 : 0))
-        )
-        n.updateRendering()
-      })
+      // avoid the value become 0
+      let [x, y] = [fx * b.x + 1, fy * b.y + 1]
+      let [absx, absy] = [
+        Math.max(Math.abs(x), 0.001),
+        Math.max(Math.abs(y), 0.001),
+      ]
+      x = x < 0 ? -absx : absx
+      y = y < 0 ? -absy : absy
+      n.transform.copy(
+        this.selectionTransforms[0]
+          .clone()
+          .scale(x, y, new Vector2(fx == -1 ? 1 : 0, fy == -1 ? 1 : 0))
+      )
+      n.updateRendering()
     } else {
       // 以下只适合多选
-      let [tw, th] = [this.selectionArea.box.w, this.selectionArea.box.h]
+      let [tw, th] = [
+        this.lastSelectionArea.box.w,
+        this.lastSelectionArea.box.h,
+      ]
       let v = end.subtract(start)
       let [x, y] = [(fx * v.x) / tw + 1, (fy * v.y) / th + 1]
       let [absx, absy] = [
@@ -583,24 +590,19 @@ export class Board {
       ]
       x = x < 0 ? -absx : absx
       y = y < 0 ? -absy : absy
-      let box = this.selectionArea.box
+      let box = this.lastSelectionArea.box
+      let rotateCenter = new Vector2(box.x, box.y).add(
+        new Vector2(fx == -1 ? box.w : 0, fy == -1 ? box.h : 0)
+      )
 
       this.selection.forEach((n, index) => {
-        // @todo: 计算各种情况，此处仅仅计算了左上角
         n.transform.copy(
-          this.selectionTransforms[index]
-            .clone()
-            .scale2(
-              x,
-              y,
-              new Vector2(box.x, box.y).add(
-                new Vector2(fx == -1 ? box.w : 0, fy == -1 ? box.h : 0)
-              )
-            )
+          this.selectionTransforms[index].clone().scale2(x, y, rotateCenter)
         )
         n.updateRendering()
       })
     }
+    this.updateSelectionArea()
   }
   private onScaleEnd(e: BoardEvent) {
     this.updateSelectionArea()
@@ -614,19 +616,16 @@ export class Board {
     } else if (this.currentMode === EditorMode.CREATE) {
       this.container.className = "cursor-crosshair"
     } else if (this.currentMode == EditorMode.DRAG) {
-      this.selectionTransforms = this.selection.map((n) => n.transform.clone())
       this._cachedEvent.customData = {
         transforms: this.selectionTransforms,
       }
       this._eventEmitter.trigger("dragStart", [this._cachedEvent])
     } else if (this.currentMode == EditorMode.ROTATE) {
-      this.selectionTransforms = this.selection.map((n) => n.transform.clone())
       this._cachedEvent.customData = {
         transforms: this.selectionTransforms,
       }
       this._eventEmitter.trigger("rotateStart", [this._cachedEvent])
     } else if (this.currentMode == EditorMode.SCALE) {
-      this.selectionTransforms = this.selection.map((n) => n.transform.clone())
       this._cachedEvent.customData = {
         transforms: this.selectionTransforms,
       }

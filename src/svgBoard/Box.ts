@@ -57,6 +57,9 @@ export class Box {
     this.w = w
     this.h = h
   }
+  public clone() {
+    return new Box(this.x, this.y, this._w, this._h)
+  }
   public merge(box: Box) {}
   public static mergeAll(boxes: Box[]) {
     if (boxes.length == 0) return null
