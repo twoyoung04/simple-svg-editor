@@ -1,5 +1,5 @@
 import { Board, DIRECTION, MouseStatus } from "./Board"
-import { BoardEvent } from "./EventEmitter"
+import { BoardEvent, EventType } from "./EventEmitter"
 import { Log } from "./Log"
 import { Manager } from "./Manager"
 import { Vector2 } from "./Vector"
@@ -24,7 +24,7 @@ export class MouseStatusManager extends Manager {
     // console.log(this._mouseStatus)
     this._mouseStatus = value
     this._cachedEvent.customData.mouseStatus = value
-    this.eventEmitter.trigger("mouseStatusChange", [this._cachedEvent])
+    this.eventEmitter.trigger(EventType.MouseStatusChange, [this._cachedEvent])
   }
 
   constructor(board: Board) {
@@ -34,7 +34,7 @@ export class MouseStatusManager extends Manager {
     this._cachedEvent.customData = {}
 
     this.eventEmitter.on(
-      "mouseStatusChange",
+      EventType.MouseStatusChange,
       this.onMouseStatusChange.bind(this)
     )
   }

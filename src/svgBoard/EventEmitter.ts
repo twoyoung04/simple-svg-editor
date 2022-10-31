@@ -5,10 +5,10 @@ export class EventEmitter {
     this.callbacks = {}
   }
 
-  public on(name: string, callback: (e: BoardEvent) => void) {
+  public on(name: EventType, callback: (e: BoardEvent) => void) {
     const that = this
 
-    if (typeof name === "undefined" || name === "") {
+    if (typeof name === "undefined") {
       console.warn("wrong names")
       return false
     }
@@ -23,8 +23,8 @@ export class EventEmitter {
     return this
   }
 
-  public off(name: string) {
-    if (typeof name === "undefined" || name === "") {
+  public off(name: EventType) {
+    if (typeof name === "undefined") {
       console.warn("wrong name")
       return false
     }
@@ -36,8 +36,8 @@ export class EventEmitter {
     return this
   }
 
-  public trigger(name: string, _args: any[]) {
-    if (typeof name === "undefined" || name === "") {
+  public trigger(name: EventType, _args: any[]) {
+    if (typeof name === "undefined") {
       console.warn("wrong name")
       return false
     }
@@ -48,6 +48,32 @@ export class EventEmitter {
       callback.apply(this, args)
     })
   }
+}
+
+export enum EventType {
+  MouseDown = "MouseDown",
+  MouseMove = "MouseMove",
+  MouseUp = "MouseUp",
+  KeyDown = "KeyDown",
+  SelectStart = "SelectStart",
+  Selecting = "Selecting",
+  SelectEnd = "SelectEnd",
+  CreateStart = "CreateStart",
+  Creating = "Creating",
+  CreateEnd = "CreateEnd",
+  DragStart = "DragStart",
+  Draging = "Draging",
+  DragEnd = "DragEnd",
+  RotateStart = "RotateStart",
+  Rotating = "Rotating",
+  RotateEnd = "RotateEnd",
+  ScaleStart = "ScaleStart",
+  Scaling = "Scaling",
+  ScaleEnd = "ScaleEnd",
+  ChangeMode = "ChangeMode",
+  ElementSelected = "ElementSelected",
+  NothingSelected = "NothingSelected",
+  MouseStatusChange = "MouseStatusChange",
 }
 
 export class BoardEvent {

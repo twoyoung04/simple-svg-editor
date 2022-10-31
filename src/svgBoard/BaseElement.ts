@@ -5,6 +5,7 @@ import { Transform } from "./Transform"
 import { Vector2 } from "./Vector"
 import { Area } from "./Area"
 import { generateId } from "./utilities"
+import { EventType } from "./EventEmitter"
 
 export abstract class BaseElement {
   protected _id: string
@@ -83,9 +84,12 @@ export abstract class BaseElement {
     // @todo: get the right index
     this.zIndex = 0
 
-    this.board.eventEmitter.on("createSart", this.onCreateStart.bind(this))
-    this.board.eventEmitter.on("creating", this.onCreating.bind(this))
-    this.board.eventEmitter.on("createEnd", this.onCreateEnd.bind(this))
+    this.board.eventEmitter.on(
+      EventType.CreateStart,
+      this.onCreateStart.bind(this)
+    )
+    this.board.eventEmitter.on(EventType.Creating, this.onCreating.bind(this))
+    this.board.eventEmitter.on(EventType.CreateEnd, this.onCreateEnd.bind(this))
   }
 
   public onCreateStart() {}

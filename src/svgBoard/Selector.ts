@@ -2,7 +2,7 @@ import { Area } from "./Area"
 import { Board } from "./Board"
 import { Box } from "./Box"
 import config from "./config"
-import { BoardEvent } from "./EventEmitter"
+import { BoardEvent, EventType } from "./EventEmitter"
 import { Log } from "./Log"
 import { Manager } from "./Manager"
 import { NS } from "./namespaces"
@@ -80,16 +80,21 @@ export class Selector extends Manager {
     this.selectorRoot.append(this.selectRect)
     this.container.append(this.selectorRoot)
 
-    board.eventEmitter.on("selectStart", this.onSelectStart.bind(this))
-    board.eventEmitter.on("selectMove", this.onSelectMove.bind(this))
-    board.eventEmitter.on("selectEnd", this.onSelectEnd.bind(this))
-    board.eventEmitter.on("elementSelected", this.onElemetSelected.bind(this))
-    board.eventEmitter.on("nothingSelected", this.onNothingSelected.bind(this))
-
-    board.eventEmitter.on("creating", this.onCreating.bind(this))
-    board.eventEmitter.on("draging", this.onDraging.bind(this))
-    board.eventEmitter.on("rotating", this.onRotating.bind(this))
-    board.eventEmitter.on("scaling", this.onScaling.bind(this))
+    board.eventEmitter.on(EventType.SelectStart, this.onSelectStart.bind(this))
+    board.eventEmitter.on(EventType.Selecting, this.onSelectMove.bind(this))
+    board.eventEmitter.on(EventType.SelectEnd, this.onSelectEnd.bind(this))
+    board.eventEmitter.on(
+      EventType.ElementSelected,
+      this.onElemetSelected.bind(this)
+    )
+    board.eventEmitter.on(
+      EventType.NothingSelected,
+      this.onNothingSelected.bind(this)
+    )
+    board.eventEmitter.on(EventType.Creating, this.onCreating.bind(this))
+    board.eventEmitter.on(EventType.Draging, this.onDraging.bind(this))
+    board.eventEmitter.on(EventType.Rotating, this.onRotating.bind(this))
+    board.eventEmitter.on(EventType.Scaling, this.onScaling.bind(this))
   }
 
   private onSelectStart(e) {

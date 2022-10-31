@@ -1,6 +1,6 @@
 import { BaseElement } from "./BaseElement"
 import { ELLIPSE } from "./Ellipse"
-import { BoardEvent, EventEmitter } from "./EventEmitter"
+import { BoardEvent, EventEmitter, EventType } from "./EventEmitter"
 import { NS } from "./namespaces"
 import { Rect } from "./Rect"
 import { generateSvgElement, setAttr } from "./utilities"
@@ -214,28 +214,31 @@ export class Board {
   }
 
   private initCustomEventHandler() {
-    this._eventEmitter.on("selectStart", this.onSelectStart.bind(this))
-    this._eventEmitter.on("createElement", this.onCreateElement.bind(this))
-    this._eventEmitter.on("creating", this.onCreateMove.bind(this))
-    this._eventEmitter.on("createEnd", this.onCreateEnd.bind(this))
-    this._eventEmitter.on("changeMode", this.onChangeMode.bind(this))
-    this._eventEmitter.on("dragStart", this.onDragStart.bind(this))
-    this._eventEmitter.on("draging", this.onDraging.bind(this))
-    this._eventEmitter.on("dragEnd", this.onDragEnd.bind(this))
-    this._eventEmitter.on("rotateStart", this.onRotateStart.bind(this))
-    this._eventEmitter.on("rotating", this.onRotating.bind(this))
-    this._eventEmitter.on("rotateEnd", this.onRotateEnd.bind(this))
-    this._eventEmitter.on("scaleStart", this.onScaleStart.bind(this))
-    this._eventEmitter.on("scaling", this.onScaling.bind(this))
-    this._eventEmitter.on("scaleEnd", this.onScaleEnd.bind(this))
+    this._eventEmitter.on(EventType.SelectStart, this.onSelectStart.bind(this))
     this._eventEmitter.on(
-      "mouseStatusChange",
+      EventType.CreateStart,
+      this.onCreateElement.bind(this)
+    )
+    this._eventEmitter.on(EventType.Creating, this.onCreateMove.bind(this))
+    this._eventEmitter.on(EventType.CreateEnd, this.onCreateEnd.bind(this))
+    this._eventEmitter.on(EventType.ChangeMode, this.onChangeMode.bind(this))
+    this._eventEmitter.on(EventType.DragStart, this.onDragStart.bind(this))
+    this._eventEmitter.on(EventType.Draging, this.onDraging.bind(this))
+    this._eventEmitter.on(EventType.DragEnd, this.onDragEnd.bind(this))
+    this._eventEmitter.on(EventType.RotateStart, this.onRotateStart.bind(this))
+    this._eventEmitter.on(EventType.Rotating, this.onRotating.bind(this))
+    this._eventEmitter.on(EventType.RotateEnd, this.onRotateEnd.bind(this))
+    this._eventEmitter.on(EventType.ScaleStart, this.onScaleStart.bind(this))
+    this._eventEmitter.on(EventType.Scaling, this.onScaling.bind(this))
+    this._eventEmitter.on(EventType.ScaleEnd, this.onScaleEnd.bind(this))
+    this._eventEmitter.on(
+      EventType.MouseStatusChange,
       this.onMouseStatusChange.bind(this)
     )
     // 封装一层，获取鼠标相对 x,y
-    this._eventEmitter.on("mouseDown", this.onMouseDown.bind(this))
-    this._eventEmitter.on("mouseMove", this.onMouseMove.bind(this))
-    this._eventEmitter.on("mouseUp", this.onMouseUp.bind(this))
+    this._eventEmitter.on(EventType.MouseDown, this.onMouseDown.bind(this))
+    this._eventEmitter.on(EventType.MouseMove, this.onMouseMove.bind(this))
+    this._eventEmitter.on(EventType.MouseUp, this.onMouseUp.bind(this))
   }
 
   private updateBoardPosition() {
@@ -252,9 +255,9 @@ export class Board {
   public setSelected(elements: BaseElement[]) {
     console.log(elements)
     this.selection = elements
-    let eventType = "elementSelected"
+    let eventType = EventType.ElementSelected
     if (!elements || elements.length == 0) {
-      eventType = "nothingSelected"
+      eventType = EventType.NothingSelected
     } else {
       // elements.forEach((e) => console.log(e.id, e.transform.a))
       this.updateSelectionArea()
@@ -272,7 +275,7 @@ export class Board {
     this._cachedEvent.customData = {
       mode,
     }
-    this._eventEmitter.trigger("changeMode", [this._cachedEvent])
+    this._eventEmitter.trigger(EventType.ChangeMode, [this._cachedEvent])
   }
 
   private updateSelectionArea() {
@@ -292,10 +295,10 @@ export class Board {
   }
 
   // delegate method on & trigger to board
-  public on(event: string, handler: (e: BoardEvent) => void) {
+  public on(event: EventType, handler: (e: BoardEvent) => void) {
     this._eventEmitter.on(event, handler)
   }
-  public trigger(event: string, e: BoardEvent) {
+  public trigger(event: EventType, e: BoardEvent) {
     this._eventEmitter.trigger(event, [e])
   }
 
@@ -308,7 +311,7 @@ export class Board {
     this._cachedEvent.customData || (this._cachedEvent.customData = {})
     this._cachedEvent.customData.x = this.mouseStartX
     this._cachedEvent.customData.y = this.mouseStartY
-    this._eventEmitter.trigger("mouseDown", [this._cachedEvent])
+    this._eventEmitter.trigger(EventType.MouseDown, [this._cachedEvent])
   }
   protected handleMouseMove(e: MouseEvent) {
     let [x, y] = [e.clientX - this.boardX, e.clientY - this.boardY]
@@ -317,33 +320,33 @@ export class Board {
     this._cachedEvent.customData || (this._cachedEvent.customData = {})
     this._cachedEvent.customData.x = x
     this._cachedEvent.customData.y = y
-    this._eventEmitter.trigger("mouseMove", [this._cachedEvent])
+    this._eventEmitter.trigger(EventType.MouseMove, [this._cachedEvent])
   }
   protected handleMouseUp(e: MouseEvent) {
     this._cachedEvent.originEvent = e
     this._cachedEvent.customData.x = e.clientX - this.boardX
     this._cachedEvent.customData.y = e.clientY - this.boardY
-    this._eventEmitter.trigger("mouseUp", [this._cachedEvent])
+    this._eventEmitter.trigger(EventType.MouseUp, [this._cachedEvent])
   }
   protected handleClick(e: MouseEvent) {}
   protected handleDBClick(e: MouseEvent) {}
   protected handleKeyDown(e: KeyboardEvent) {
     this._cachedKeyEvent.originEvent = e
-    this.trigger("keyDown", this._cachedKeyEvent)
+    this.trigger(EventType.KeyDown, this._cachedKeyEvent)
   }
 
   // custom events
   private onMouseDown(e: BoardEvent) {
     console.log("function onMouseDown...")
     this.MouseDown = true
+
     if (this.currentMode === EditorMode.CREATE) {
-      this._cachedEvent.name = "createElement"
       this._cachedEvent.customData = {
         type: this.currentCreateMode,
         startX: this.mouseStartX,
         startY: this.mouseStartY,
       }
-      this._eventEmitter.trigger("createElement", [this._cachedEvent])
+      this._eventEmitter.trigger(EventType.CreateStart, [this._cachedEvent])
       return
     }
     console.log("not create mode...")
@@ -371,12 +374,12 @@ export class Board {
         this.setMode(EditorMode.DRAG)
       } else {
         this.setMode(EditorMode.SELECT)
-        this._cachedEvent.name = "selectStart"
-        this._eventEmitter.trigger("selectStart", [this._cachedEvent])
+        this._eventEmitter.trigger(EventType.SelectStart, [this._cachedEvent])
       }
     }
   }
   private onMouseMove(e: BoardEvent) {
+    console.log("this.currentMode: ", this.currentMode)
     if (this.currentMode === EditorMode.CREATE && this.MouseDown) {
       this._cachedEvent.customData = {
         startX: this.mouseStartX,
@@ -384,7 +387,7 @@ export class Board {
         endX: e.customData.x,
         endY: e.customData.y,
       }
-      this._eventEmitter.trigger("creating", [this._cachedEvent])
+      this._eventEmitter.trigger(EventType.Creating, [this._cachedEvent])
     } else if (this.currentMode == EditorMode.DRAG) {
       this._cachedEvent.customData = {
         startX: this.mouseStartX,
@@ -392,7 +395,7 @@ export class Board {
         endX: e.customData.x,
         endY: e.customData.y,
       }
-      this._eventEmitter.trigger("draging", [this._cachedEvent])
+      this._eventEmitter.trigger(EventType.Draging, [this._cachedEvent])
     } else if (this.currentMode == EditorMode.ROTATE) {
       this._cachedEvent.customData = {
         startX: this.mouseStartX,
@@ -400,7 +403,7 @@ export class Board {
         endX: e.customData.x,
         endY: e.customData.y,
       }
-      this._eventEmitter.trigger("rotating", [this._cachedEvent])
+      this._eventEmitter.trigger(EventType.Rotating, [this._cachedEvent])
     } else if (this.currentMode == EditorMode.SCALE) {
       this._cachedEvent.customData = {
         startX: this.mouseStartX,
@@ -408,7 +411,7 @@ export class Board {
         endX: e.customData.x,
         endY: e.customData.y,
       }
-      this._eventEmitter.trigger("scaling", [this._cachedEvent])
+      this._eventEmitter.trigger(EventType.Scaling, [this._cachedEvent])
     } else if (this.MouseDown) {
       this._cachedEvent.customData = {
         startX: this.mouseStartX,
@@ -416,21 +419,21 @@ export class Board {
         endX: e.customData.x,
         endY: e.customData.y,
       }
-      this._eventEmitter.trigger("selectMove", [this._cachedEvent])
+      this._eventEmitter.trigger(EventType.Selecting, [this._cachedEvent])
     }
   }
   private onMouseUp(e: BoardEvent) {
     this.MouseDown = false
     if (this.currentMode === EditorMode.CREATE) {
-      this._eventEmitter.trigger("createEnd", [this._cachedEvent])
+      this._eventEmitter.trigger(EventType.CreateEnd, [this._cachedEvent])
     } else if (this.currentMode == EditorMode.SELECT) {
-      this._eventEmitter.trigger("selectEnd", [this._cachedEvent])
+      this._eventEmitter.trigger(EventType.SelectEnd, [this._cachedEvent])
     } else if (this.currentMode == EditorMode.ROTATE) {
-      this._eventEmitter.trigger("rotateEnd", [this._cachedEvent])
+      this._eventEmitter.trigger(EventType.RotateEnd, [this._cachedEvent])
     } else if (this.currentMode == EditorMode.DRAG) {
-      this._eventEmitter.trigger("dragEnd", [this._cachedEvent])
+      this._eventEmitter.trigger(EventType.DragEnd, [this._cachedEvent])
     } else if (this.currentMode == EditorMode.SCALE) {
-      this._eventEmitter.trigger("scaleEnd", [this._cachedEvent])
+      this._eventEmitter.trigger(EventType.ScaleEnd, [this._cachedEvent])
     }
     this.currentMode = EditorMode.SELECT
   }
@@ -622,17 +625,17 @@ export class Board {
       this._cachedEvent.customData = {
         transforms: this.selectionTransforms,
       }
-      this._eventEmitter.trigger("dragStart", [this._cachedEvent])
+      this._eventEmitter.trigger(EventType.DragStart, [this._cachedEvent])
     } else if (this.currentMode == EditorMode.ROTATE) {
       this._cachedEvent.customData = {
         transforms: this.selectionTransforms,
       }
-      this._eventEmitter.trigger("rotateStart", [this._cachedEvent])
+      this._eventEmitter.trigger(EventType.RotateStart, [this._cachedEvent])
     } else if (this.currentMode == EditorMode.SCALE) {
       this._cachedEvent.customData = {
         transforms: this.selectionTransforms,
       }
-      this._eventEmitter.trigger("scaleStart", [this._cachedEvent])
+      this._eventEmitter.trigger(EventType.ScaleStart, [this._cachedEvent])
     }
   }
 
