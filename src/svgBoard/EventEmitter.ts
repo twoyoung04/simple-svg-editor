@@ -5,7 +5,6 @@ export class EventEmitter {
     this.callbacks = {}
   }
 
-  // @todo: define type of callbacks
   public on(name: string, callback: (e: BoardEvent) => void) {
     const that = this
 
@@ -37,7 +36,7 @@ export class EventEmitter {
     return this
   }
 
-  trigger(name: string, _args: any[]) {
+  public trigger(name: string, _args: any[]) {
     if (typeof name === "undefined" || name === "") {
       console.warn("wrong name")
       return false
@@ -59,12 +58,12 @@ export class BoardEvent {
   public set name(value: string) {
     this._name = value
   }
-  private _mouseEvent: MouseEvent
-  public get mouseEvent(): MouseEvent {
-    return this._mouseEvent
+  private _originEvent: Event
+  public get originEvent(): Event {
+    return this._originEvent
   }
-  public set mouseEvent(value: MouseEvent) {
-    this._mouseEvent = value
+  public set originEvent(value: Event) {
+    this._originEvent = value
   }
   private _customData: any
   public get customData(): any {
@@ -73,8 +72,8 @@ export class BoardEvent {
   public set customData(value: any) {
     this._customData = value
   }
-  constructor(name: string, mouseEvent: MouseEvent) {
+  constructor(name: string, mouseEvent: Event) {
     this.name = name
-    this.mouseEvent = mouseEvent
+    this.originEvent = mouseEvent
   }
 }

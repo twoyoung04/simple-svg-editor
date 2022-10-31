@@ -22,6 +22,11 @@ body {
 .cursor-move {
   cursor: move;
 }
+/* .cursor-rotate {
+  cursor: url(rotate.svg), url(rotate.svg) 0s 0, progress;
+} */
+
+/* @todo: change this */
 .cursor-rotate {
-  cursor: url(rotate.svg), url(rotate.svg) 5 5, progress;
+  cursor: move;
 }

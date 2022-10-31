@@ -11,6 +11,7 @@ import { Box } from "./Box"
 import { Transform } from "./Transform"
 import { Vector2 } from "./Vector"
 import { MouseStatusManager } from "./MouseStatusManager"
+import { ShortcutManager } from "./ShortcutManager"
 
 export class Board {
   private saveOptions: any
@@ -18,6 +19,7 @@ export class Board {
   fx: number
   fy: number
   lastSelectionArea: Area
+  _cachedKeyEvent: BoardEvent
   public get selection(): BaseElement[] {
     return this._selection
   }
@@ -56,6 +58,7 @@ export class Board {
   private _cachedEvent: BoardEvent
 
   private mouseStatusManager: MouseStatusManager
+  private shotcutManager: ShortcutManager
 
   private boardX = 0
   private boardY = 0
@@ -66,7 +69,13 @@ export class Board {
   private mouseStartX = 0
   private mouseStartY = 0
   private lastZIndex = 0
-  private currentCreateMode: CreateMode
+  private _currentCreateMode: CreateMode
+  public get currentCreateMode(): CreateMode {
+    return this._currentCreateMode
+  }
+  public set currentCreateMode(value: CreateMode) {
+    this._currentCreateMode = value
+  }
 
   public get eventEmitter(): EventEmitter {
     return this._eventEmitter
@@ -114,7 +123,9 @@ export class Board {
 
     this._eventEmitter = new EventEmitter()
     this._cachedEvent = new BoardEvent("", null)
+    this._cachedKeyEvent = new BoardEvent("", null)
     this.mouseStatusManager = new MouseStatusManager(this)
+    this.shotcutManager = new ShortcutManager(this)
 
     this.container = container
     this.svgdoc = document
@@ -256,7 +267,7 @@ export class Board {
     this._eventEmitter.trigger(eventType, [this._cachedEvent])
   }
 
-  private setMode(mode: EditorMode) {
+  public setMode(mode: EditorMode) {
     this.currentMode = mode
     this._cachedEvent.customData = {
       mode,
@@ -280,12 +291,20 @@ export class Board {
     }
   }
 
+  // delegate method on & trigger to board
+  public on(event: string, handler: (e: BoardEvent) => void) {
+    this._eventEmitter.on(event, handler)
+  }
+  public trigger(event: string, e: BoardEvent) {
+    this._eventEmitter.trigger(event, [e])
+  }
+
   // original events
   protected handleMouseDown(e: MouseEvent) {
     this.mouseStartX = e.clientX - this.boardX
     this.mouseStartY = e.clientY - this.boardY
 
-    this._cachedEvent.mouseEvent = e
+    this._cachedEvent.originEvent = e
     this._cachedEvent.customData || (this._cachedEvent.customData = {})
     this._cachedEvent.customData.x = this.mouseStartX
     this._cachedEvent.customData.y = this.mouseStartY
@@ -293,7 +312,7 @@ export class Board {
   }
   protected handleMouseMove(e: MouseEvent) {
     let [x, y] = [e.clientX - this.boardX, e.clientY - this.boardY]
-    this._cachedEvent.mouseEvent = e
+    this._cachedEvent.originEvent = e
 
     this._cachedEvent.customData || (this._cachedEvent.customData = {})
     this._cachedEvent.customData.x = x
@@ -301,7 +320,7 @@ export class Board {
     this._eventEmitter.trigger("mouseMove", [this._cachedEvent])
   }
   protected handleMouseUp(e: MouseEvent) {
-    this._cachedEvent.mouseEvent = e
+    this._cachedEvent.originEvent = e
     this._cachedEvent.customData.x = e.clientX - this.boardX
     this._cachedEvent.customData.y = e.clientY - this.boardY
     this._eventEmitter.trigger("mouseUp", [this._cachedEvent])
@@ -309,24 +328,8 @@ export class Board {
   protected handleClick(e: MouseEvent) {}
   protected handleDBClick(e: MouseEvent) {}
   protected handleKeyDown(e: KeyboardEvent) {
-    switch (e.key) {
-      case "r":
-        this.setMode(EditorMode.CREATE)
-        this.currentCreateMode = CreateMode.RECT
-        break
-      case "o":
-        this.setMode(EditorMode.CREATE)
-        this.currentCreateMode = CreateMode.ELLIPSE
-        break
-      case "l":
-        this.setMode(EditorMode.CREATE)
-        this.currentCreateMode = CreateMode.LINE
-        break
-      case "v":
-        this.setMode(EditorMode.SELECT)
-        this.currentCreateMode = CreateMode.LINE
-        break
-    }
+    this._cachedKeyEvent.originEvent = e
+    this.trigger("keyDown", this._cachedKeyEvent)
   }
 
   // custom events
@@ -437,7 +440,7 @@ export class Board {
   private onSelectEnd(e: BoardEvent) {}
 
   private onCreateElement(e: BoardEvent) {
-    const { mouseEvent, customData } = e
+    const { originEvent: mouseEvent, customData } = e
     console.log(customData.type)
     switch (customData.type) {
       case CreateMode.RECT:
@@ -461,7 +464,7 @@ export class Board {
     console.log(this.selection)
     if (this.container.className) this.container.className = ""
     console.log("handle create move...")
-    const { mouseEvent, customData } = e
+    const { originEvent: mouseEvent, customData } = e
     let [width, height] = [
       Math.abs(customData.endX - customData.startX),
       Math.abs(customData.endY - customData.startY),
@@ -481,7 +484,7 @@ export class Board {
     this.selectionTransforms = this.selection.map((n) => n.transform.clone())
   }
   private onDraging(e: BoardEvent) {
-    const { mouseEvent, customData } = e
+    const { originEvent: mouseEvent, customData } = e
     const { startX, startY, endX, endY } = customData
     // @todo: 需要记录 drag 之前的 transform 信息
     this.selection.forEach((n, index) => {
@@ -498,7 +501,7 @@ export class Board {
     this.lastSelectionArea = this.selectionArea.clone()
   }
   private onRotating(e: BoardEvent) {
-    const { mouseEvent, customData } = e
+    const { originEvent: mouseEvent, customData } = e
     const { startX, startY, endX, endY } = customData
     let center = this.lastSelectionArea.center()
     let a = new Vector2(startX - center.x, startY - center.y)
@@ -545,7 +548,7 @@ export class Board {
     this.fy = fy
   }
   private onScaling(e: BoardEvent) {
-    const { mouseEvent, customData } = e
+    const { originEvent: mouseEvent, customData } = e
     const { startX, startY, endX, endY } = customData
     let start = new Vector2(startX, startY)
     let end = new Vector2(endX, endY)
