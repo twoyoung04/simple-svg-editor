@@ -3,7 +3,7 @@ import { ELLIPSE } from "./Ellipse"
 import { BoardEvent, EventEmitter, EventType } from "./EventEmitter"
 import { NS } from "./namespaces"
 import { Rect } from "./Rect"
-import { generateSvgElement, setAttr } from "./utilities"
+import { generateSvgElement, isMac, setAttr } from "./utilities"
 import { Selector } from "./Selector"
 import { Log } from "./Log"
 import { Area } from "./Area"
@@ -12,6 +12,7 @@ import { Transform } from "./Transform"
 import { Vector2 } from "./Vector"
 import { MouseStatusManager } from "./MouseStatusManager"
 import { ShortcutManager } from "./ShortcutManager"
+import { UndoManager } from "./history"
 
 export class Board {
   private saveOptions: any
@@ -20,6 +21,7 @@ export class Board {
   fy: number
   lastSelectionArea: Area
   _cachedKeyEvent: BoardEvent
+  undoManager: UndoManager
   public get selection(): BaseElement[] {
     return this._selection
   }
@@ -107,6 +109,7 @@ export class Board {
   private lastFrameHeight: number
 
   constructor(container: HTMLElement) {
+    this.container = container
     this.saveOptions = {}
     this.selection = []
     this.selectionArea = new Area(new Box(0, 0, 1, 1), Transform.identity())
@@ -116,19 +119,24 @@ export class Board {
     this.rubberBox = null
     this.curBBoxes = []
     this.curConfig = {
-      dimensions: [800, 600],
+      dimensions: this.getTargetDimensions(),
     }
     this.elements = []
     this.selectionTransforms = []
 
+    this.svgdoc = document
+
     this._eventEmitter = new EventEmitter()
+
+    // !!! 画板自身的事件要先注册，以便管理器和插件拿到的是最新的状态
+    this.initEventHandler()
+    this.initCustomEventHandler()
+
     this._cachedEvent = new BoardEvent("", null)
     this._cachedKeyEvent = new BoardEvent("", null)
     this.mouseStatusManager = new MouseStatusManager(this)
+    this.undoManager = new UndoManager(this)
     this.shotcutManager = new ShortcutManager(this)
-
-    this.container = container
-    this.svgdoc = document
 
     this.updateBoardPosition()
 
@@ -181,13 +189,55 @@ export class Board {
     this.svgroot.append(this.svgcontent)
     this.container.append(this.svgroot)
 
-    this.initSelector()
+    this.addInstructions()
 
-    this.initEventHandler()
-    this.initCustomEventHandler()
+    this.initSelector()
 
     // @todo: 传递画板的引用给元素，有没有更好的办法？？
     ;(window as any).board = this
+  }
+
+  private getTargetDimensions() {
+    let width = window.innerWidth
+    let height = window.innerHeight
+    return [width, height]
+  }
+
+  private updateBoardSize() {
+    let svg2BeUpdate = [this.svgroot, this.canvasBg, this.svgcontent]
+    svg2BeUpdate.forEach((item) => {
+      setAttr(item, {
+        width: this.curConfig.dimensions[0],
+        height: this.curConfig.dimensions[1],
+      })
+    })
+  }
+
+  private addInstructions() {
+    let instruction = this._svgdoc.createElementNS(
+      NS.SVG,
+      "foreignObject"
+    ) as SVGForeignObjectElement
+    setAttr(instruction, {
+      x: "0",
+      y: "40%",
+      width: "100%",
+      height: "200",
+    })
+    let p = this._svgdoc.createElement("p") as HTMLParagraphElement
+    let texts = [
+      "press R to draw Rectangle",
+      "press O to draw Ellipse",
+      `press ${isMac() ? "Command" : "Ctrl"} + Z to undo`,
+      `press ${isMac() ? "Command" : "Ctrl"} + Shift + Z to redo`,
+    ]
+    p.innerHTML = texts.join("<br />")
+    p.setAttribute(
+      "style",
+      "text-align: center; color: #bbb; user-select: none"
+    )
+    instruction.append(p)
+    this.svgroot.append(instruction)
   }
 
   private initSelector() {
@@ -207,9 +257,7 @@ export class Board {
       "mousemove",
       this.handleMouseMove.bind(this)
     )
-    document.addEventListener("resize", () => {
-      this.updateBoardPosition()
-    })
+    window.addEventListener("resize", this.handleResize.bind(this))
     this.container.addEventListener("keydown", this.handleKeyDown.bind(this))
   }
 
@@ -235,6 +283,10 @@ export class Board {
       EventType.MouseStatusChange,
       this.onMouseStatusChange.bind(this)
     )
+    this._eventEmitter.on(
+      EventType.ElementChanged,
+      this.onElementChanged.bind(this)
+    )
     // 封装一层，获取鼠标相对 x,y
     this._eventEmitter.on(EventType.MouseDown, this.onMouseDown.bind(this))
     this._eventEmitter.on(EventType.MouseMove, this.onMouseMove.bind(this))
@@ -253,7 +305,7 @@ export class Board {
 
   // @todo: 这个方法修饰符应该设置成 private or protected
   public setSelected(elements: BaseElement[]) {
-    console.log(elements)
+    console.log("selection: ", elements)
     this.selection = elements
     let eventType = EventType.ElementSelected
     if (!elements || elements.length == 0) {
@@ -334,6 +386,11 @@ export class Board {
     this._cachedKeyEvent.originEvent = e
     this.trigger(EventType.KeyDown, this._cachedKeyEvent)
   }
+  protected handleResize(e) {
+    this.updateBoardPosition()
+    this.curConfig.dimensions = this.getTargetDimensions()
+    this.updateBoardSize()
+  }
 
   // custom events
   private onMouseDown(e: BoardEvent) {
@@ -379,7 +436,6 @@ export class Board {
     }
   }
   private onMouseMove(e: BoardEvent) {
-    console.log("this.currentMode: ", this.currentMode)
     if (this.currentMode === EditorMode.CREATE && this.MouseDown) {
       this._cachedEvent.customData = {
         startX: this.mouseStartX,
@@ -444,7 +500,6 @@ export class Board {
 
   private onCreateElement(e: BoardEvent) {
     const { originEvent: mouseEvent, customData } = e
-    console.log(customData.type)
     switch (customData.type) {
       case CreateMode.RECT:
         let rect = new Rect(customData.startX, customData.startY, 0, 0)
@@ -464,15 +519,12 @@ export class Board {
   }
   private onCreateMove(e: BoardEvent) {
     this.updateSelectionArea()
-    console.log(this.selection)
     if (this.container.className) this.container.className = ""
-    console.log("handle create move...")
     const { originEvent: mouseEvent, customData } = e
     let [width, height] = [
       Math.abs(customData.endX - customData.startX),
       Math.abs(customData.endY - customData.startY),
     ]
-    console.log(width, height)
     // 元素的实际位置和大小由 Box（0，0，1，1）与 transform 结合表示
     this.selection[0].transform.a = width
     this.selection[0].transform.d = height
@@ -484,7 +536,10 @@ export class Board {
     console.log("create element end...")
   }
   private onDragStart(e: BoardEvent) {
+    e.elements = this.selection
+    this.trigger(EventType.ElementChangeStart, e)
     this.selectionTransforms = this.selection.map((n) => n.transform.clone())
+    this.selection.forEach((e) => (e.lastTransform = e.transform.clone()))
   }
   private onDraging(e: BoardEvent) {
     const { originEvent: mouseEvent, customData } = e
@@ -497,9 +552,14 @@ export class Board {
     })
     this.updateSelectionArea()
   }
-  private onDragEnd(e: BoardEvent) {}
+  private onDragEnd(e: BoardEvent) {
+    e.elements = this.selection
+    this.trigger(EventType.ElementChangeEnd, e)
+  }
 
   private onRotateStart(e: BoardEvent) {
+    e.elements = this.selection
+    this.trigger(EventType.ElementChangeStart, e)
     this.selectionTransforms = this.selection.map((n) => n.transform.clone())
     this.lastSelectionArea = this.selectionArea.clone()
   }
@@ -522,11 +582,15 @@ export class Board {
     this.updateSelectionArea()
   }
   private onRotateEnd(e: BoardEvent) {
+    e.elements = this.selection
+    this.trigger(EventType.ElementChangeEnd, e)
     this.updateSelectionArea()
   }
 
   private onScaleStart(e: BoardEvent) {
-    // @todo: 还没考虑多选情况
+    e.elements = this.selection
+    this.trigger(EventType.ElementChangeStart, e)
+
     this.lastFrameWidth = this.selection[0].frameWidth
     this.lastFrameHeight = this.selection[0].frameHeight
     this.selectionTransforms = this.selection.map((n) => n.transform.clone())
@@ -611,6 +675,8 @@ export class Board {
     this.updateSelectionArea()
   }
   private onScaleEnd(e: BoardEvent) {
+    e.elements = this.selection
+    this.trigger(EventType.ElementChangeEnd, e)
     this.updateSelectionArea()
   }
 
@@ -639,8 +705,13 @@ export class Board {
     }
   }
 
+  private onElementChanged(e: BoardEvent) {
+    this.updateSelectionArea()
+  }
+
   private onMouseStatusChange(e: BoardEvent) {}
 
+  // judge
   private clickOnSelectedArea(e: BoardEvent) {
     return this.selectionArea.include(
       new Vector2(e.customData.x, e.customData.y)
@@ -655,8 +726,6 @@ export class Board {
         return new Area(new Box(0, 0, 1, 1), e.transform).include(pos)
       })
     this.setSelected(element ? [element] : [])
-    console.log("into function clickONElement")
-    element && console.log("click on:", element.id)
     return !!element
   }
 }

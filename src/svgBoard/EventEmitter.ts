@@ -1,3 +1,5 @@
+import { BaseElement } from "./BaseElement"
+
 export class EventEmitter {
   private callbacks: any
 
@@ -74,9 +76,25 @@ export enum EventType {
   ElementSelected = "ElementSelected",
   NothingSelected = "NothingSelected",
   MouseStatusChange = "MouseStatusChange",
+
+  ElementChangeStart = "ElementChangeStart",
+  // 以下这两个事件主要用来区分普通操作和撤销时导致的元素变化区别
+  ElementChangeEnd = "ElementChangeEnd",
+  ElementChanged = "ElementChanged",
+
+  Undo = "Undo",
+  Redo = "Redo",
 }
 
 export class BoardEvent {
+  private _elements: BaseElement[]
+  public get elements(): BaseElement[] {
+    return this._elements
+  }
+  public set elements(value: BaseElement[]) {
+    this._elements = value
+  }
+
   private _name: string
   public get name(): string {
     return this._name
@@ -98,8 +116,9 @@ export class BoardEvent {
   public set customData(value: any) {
     this._customData = value
   }
-  constructor(name: string, mouseEvent: Event) {
+  constructor(name: string, event: Event) {
     this.name = name
-    this.originEvent = mouseEvent
+    this.originEvent = event
+    this.elements = []
   }
 }

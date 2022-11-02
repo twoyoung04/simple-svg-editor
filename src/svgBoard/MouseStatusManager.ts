@@ -39,9 +39,7 @@ export class MouseStatusManager extends Manager {
     )
   }
 
-  public override onMouseDown(e: BoardEvent): void {
-    Log.blue("mouse down in MouseStatusManager...")
-  }
+  public override onMouseDown(e: BoardEvent): void {}
   public override onMouseMove(e: BoardEvent): void {
     this.updateMouseStatus(e)
   }

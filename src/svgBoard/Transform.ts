@@ -86,6 +86,16 @@ export class Transform {
     this.f = 0
     return this
   }
+  public equal(t: Transform) {
+    return (
+      this.a === t.a &&
+      this.b === t.b &&
+      this.c === t.c &&
+      this.d === t.d &&
+      this.e === t.e &&
+      this.f === t.f
+    )
+  }
 
   public translate(v: Vector2) {
     return this.translate2(v.x, v.y)

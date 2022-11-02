@@ -95,6 +95,10 @@ export class Selector extends Manager {
     board.eventEmitter.on(EventType.Draging, this.onDraging.bind(this))
     board.eventEmitter.on(EventType.Rotating, this.onRotating.bind(this))
     board.eventEmitter.on(EventType.Scaling, this.onScaling.bind(this))
+    board.eventEmitter.on(
+      EventType.ElementChanged,
+      this.onElementChanged.bind(this)
+    )
   }
 
   private onSelectStart(e) {
@@ -172,6 +176,10 @@ export class Selector extends Manager {
         ...rect,
       })
     }
+  }
+
+  private onElementChanged(e: BoardEvent) {
+    this.updateRender()
   }
 
   private updateSelector() {}

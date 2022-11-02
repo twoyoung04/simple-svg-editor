@@ -1,6 +1,7 @@
 import { Board, CreateMode, EditorMode } from "./Board"
 import { BoardEvent, EventType } from "./EventEmitter"
 import { Manager } from "./Manager"
+import { isMac } from "./utilities"
 
 export class ShortcutManager extends Manager {
   constructor(board: Board) {
@@ -10,10 +11,11 @@ export class ShortcutManager extends Manager {
   }
 
   public OnKeyDown(e: BoardEvent) {
-    switch ((e.originEvent as KeyboardEvent).key) {
+    let originEvent = e.originEvent as KeyboardEvent
+    let isMacOS = isMac()
+    switch (originEvent.key) {
       case "r":
         this.board.setMode(EditorMode.CREATE)
-        console.log("---------")
         this.board.currentCreateMode = CreateMode.RECT
         break
       case "o":
@@ -27,6 +29,18 @@ export class ShortcutManager extends Manager {
       case "v":
         this.board.setMode(EditorMode.SELECT)
         this.board.currentCreateMode = CreateMode.LINE
+        break
+      case "z":
+        // 需要判断一下平台
+        let ctrlOrCmd =
+          (isMacOS && originEvent.metaKey) || (!isMacOS && originEvent.ctrlKey)
+        if (ctrlOrCmd) {
+          if (originEvent.shiftKey) {
+            this.board.trigger(EventType.Redo, e)
+          } else {
+            this.board.trigger(EventType.Undo, e)
+          }
+        }
         break
     }
   }

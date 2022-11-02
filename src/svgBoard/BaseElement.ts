@@ -45,6 +45,13 @@ export abstract class BaseElement {
   public set transform(value: Transform) {
     this._transform = value
   }
+  private _lastTransform: Transform
+  public get lastTransform(): Transform {
+    return this._lastTransform
+  }
+  public set lastTransform(value: Transform) {
+    this._lastTransform = value
+  }
   // 元素的 AABB 框，在对元素进行变换时需要更新
   private _AABB: Box
   public get AABB(): Box {
@@ -94,7 +101,6 @@ export abstract class BaseElement {
 
   public onCreateStart() {}
   public onCreating() {
-    Log.blue("on creating in baseelement")
     if (this.board.selection[0] == this) {
     }
   }

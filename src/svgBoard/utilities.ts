@@ -20,3 +20,9 @@ let id = 100000
 export const generateId = () => {
   return "node-" + id++
 }
+
+export const isMac = () => {
+  let agent = navigator.userAgent.toLowerCase()
+  let isMac = /macintosh|mac os x/i.test(agent)
+  return isMac
+}
