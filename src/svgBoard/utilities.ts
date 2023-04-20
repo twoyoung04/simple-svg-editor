@@ -1,4 +1,5 @@
 import { NS } from "./namespaces"
+import { Position } from "./type"
 
 export const generateSvgElement = (docuemnt: Document, attributes?: any) => {
   let ele = docuemnt.createElementNS(NS.SVG, "svg") as SVGElement

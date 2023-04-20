@@ -13,6 +13,7 @@ export class ShortcutManager extends Manager {
   public OnKeyDown(e: BoardEvent) {
     let originEvent = e.originEvent as KeyboardEvent
     let isMacOS = isMac()
+    console.log('originEvent.key:', originEvent.key);
     switch (originEvent.key) {
       case "r":
         this.board.setMode(EditorMode.CREATE)

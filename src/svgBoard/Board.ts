@@ -13,6 +13,9 @@ import { Vector2 } from "./Vector"
 import { MouseStatusManager } from "./MouseStatusManager"
 import { ShortcutManager } from "./ShortcutManager"
 import { UndoManager } from "./history"
+import { Viewport } from "./viewport"
+import { WorldPosition } from "./type"
+import { clamp } from "lodash"
 
 export class Board {
   private saveOptions: any
@@ -22,6 +25,9 @@ export class Board {
   lastSelectionArea: Area
   _cachedKeyEvent: BoardEvent
   undoManager: UndoManager
+  viewport: Viewport
+  worldPosition: WorldPosition
+  zoom: number
   public get selection(): BaseElement[] {
     return this._selection
   }
@@ -124,6 +130,9 @@ export class Board {
     this.elements = []
     this.selectionTransforms = []
 
+    this.worldPosition = {x: 0, y: 0}
+    this.zoom = 1;
+
     this.svgdoc = document
 
     this._eventEmitter = new EventEmitter()
@@ -185,11 +194,33 @@ export class Board {
       id: "svgcontent",
     })
 
+    this.viewport = new Viewport(this);
+
     this.svgroot.append(this.canvasBg)
     this.svgroot.append(this.svgcontent)
-    this.container.append(this.svgroot)
+    this.viewport.container.append(this.svgroot);
+    this.container.append(this.viewport.container);
+    this.container.style.overflow = 'hidden'
 
-    this.addInstructions()
+    // document.addEventListener('wheel', (e) => e.preventDefault())
+
+    this.container.addEventListener('wheel', (event)=> {
+      event.preventDefault()
+      if (event.metaKey) {
+        this.zoom += event.deltaY * 0.01 * this.zoom;
+        this.zoom = clamp(this.zoom, 0.02, 10);
+        
+        this.viewport.update()
+      }
+      else {
+        this.worldPosition.x += event.deltaX * 0.4 * this.zoom;
+        this.worldPosition.y += event.deltaY * 0.4 * this.zoom;
+        this.viewport.update()
+      }
+    })
+    // this.container.append(this.svgroot)
+
+    // this.addInstructions()
 
     this.initSelector()
 
@@ -356,8 +387,11 @@ export class Board {
 
   // original events
   protected handleMouseDown(e: MouseEvent) {
-    this.mouseStartX = e.clientX - this.boardX
-    this.mouseStartY = e.clientY - this.boardY
+    const pos = this.viewport.getPagePosFromClient({x: e.clientX, y: e.clientY});
+    const clientX = pos.x;
+    const clientY = pos.y;
+    this.mouseStartX = clientX - this.boardX
+    this.mouseStartY = clientY - this.boardY
 
     this._cachedEvent.originEvent = e
     this._cachedEvent.customData || (this._cachedEvent.customData = {})
@@ -366,7 +400,10 @@ export class Board {
     this._eventEmitter.trigger(EventType.MouseDown, [this._cachedEvent])
   }
   protected handleMouseMove(e: MouseEvent) {
-    let [x, y] = [e.clientX - this.boardX, e.clientY - this.boardY]
+    const pos = this.viewport.getPagePosFromClient({x: e.clientX, y: e.clientY});
+    const clientX = pos.x;
+    const clientY = pos.y;
+    let [x, y] = [clientX - this.boardX, clientY - this.boardY]
     this._cachedEvent.originEvent = e
 
     this._cachedEvent.customData || (this._cachedEvent.customData = {})
@@ -375,9 +412,12 @@ export class Board {
     this._eventEmitter.trigger(EventType.MouseMove, [this._cachedEvent])
   }
   protected handleMouseUp(e: MouseEvent) {
+    const pos = this.viewport.getPagePosFromClient({x: e.clientX, y: e.clientY});
+    const clientX = pos.x;
+    const clientY = pos.y;
     this._cachedEvent.originEvent = e
-    this._cachedEvent.customData.x = e.clientX - this.boardX
-    this._cachedEvent.customData.y = e.clientY - this.boardY
+    this._cachedEvent.customData.x = clientX - this.boardX
+    this._cachedEvent.customData.y = clientY - this.boardY
     this._eventEmitter.trigger(EventType.MouseUp, [this._cachedEvent])
   }
   protected handleClick(e: MouseEvent) {}
